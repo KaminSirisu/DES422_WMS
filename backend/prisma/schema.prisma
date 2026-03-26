@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ENUMS
+//
+
+enum Role {
+  user
+  admin
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum LogAction {
+  WITHDRAW
+  ADD
+}
+
+//
+// USER
+//
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  role      Role     @default(user)
+  createdAt DateTime @default(now())
+
+  logs   Log[]
+  orders Order[]
+}
+
+//
+// ITEM
+//
+
+model Item {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  locations ItemLocation[]
+  logs      Log[]
+  orderLines OrderLine[]
+}
+
+//
+// LOCATION (SIMPLIFIED)
+//
+
+model Location {
+  id        Int      @id @default(autoincrement())
+  name      String   // e.g. "A1", "B2"
+  capacity  Int?
+  createdAt DateTime @default(now())
+
+  items ItemLocation[]
+  logs  Log[]
+}
+
+//
+// STOCK PER LOCATION
+//
+
+model ItemLocation {
+  id         Int @id @default(autoincrement())
+  itemId     Int
+  locationId Int
+  quantity   Int @default(0)
+
+  item     Item     @relation(fields: [itemId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([itemId, locationId])
+}
+
+//
+// LOGS (TRACK EVERYTHING)
+//
+
+model Log {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  itemId     Int
+  locationId Int
+  quantity   Int
+  action     LogAction
+  createdAt  DateTime  @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+//
+// ORDERS (REQUEST SYSTEM)
+//
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  user  User        @relation(fields: [userId], references: [id])
+  lines OrderLine[]
+}
+
+model OrderLine {
+  id        Int @id @default(autoincrement())
+  orderId   Int
+  itemId    Int
+  quantity  Int
+
+  order Order @relation(fields: [orderId], references: [id])
+  item  Item  @relation(fields: [itemId], references: [id])
+}
