@@ -4,6 +4,10 @@ exports.addStock = async (req, res) => {
     const { itemId, locationId, quantity } = req.body;
     const userId = req.user.id;
 
+    if (!itemId || !locationId || quantity <= 0) {
+        return res.status(400).json({ message: "itemId, locationId and positive quantity are required"})
+    }
+
     try {
         const result = await prisma.$transaction(async (tx) => {
             // 1. Add stock

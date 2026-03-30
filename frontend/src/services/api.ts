@@ -32,9 +32,12 @@ export const login = async (username: string, password: string) : Promise<LoginR
 
   const token = response.data.token;
 
-  localStorage.setItem("token", token);
-  setAuthToken(token);
+  if (token) {
+    localStorage.setItem("token", token);
+    setAuthToken(token);
 
+  }
+  
   return response.data;
 }
 
@@ -131,20 +134,20 @@ export const createOrder = async (
   return response.data;
 }
 
-// Get all orders
-export const getOrders = async (status?: string): Promise<Order[]> => {
-  const response = await api.get('/orders', {
-    params: { status },
-  });
-  return response.data;
-}
+// // Get all orders
+// export const getOrders = async (status?: string): Promise<Order[]> => {
+//   const response = await api.get('/orders', {
+//     params: { status },
+//   });
+//   return response.data;
+// }
 
-// Get backlog orders only
-export const getBacklogOrders = async (): Promise<Order[]> => {
-  const response = await api.get('/orders', {
-    params: { status: "BACKLOG" },
-  });
-  return response.data;
-}
+// // Get backlog orders only
+// export const getBacklogOrders = async (): Promise<Order[]> => {
+//   const response = await api.get('/orders', {
+//     params: { status: "BACKLOG" },
+//   });
+//   return response.data;
+// }
 
 export default api;

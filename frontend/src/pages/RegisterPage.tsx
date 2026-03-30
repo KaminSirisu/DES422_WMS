@@ -71,6 +71,7 @@ const RegisterPage: React.FC = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
                             placeholder='Email'
+                            required
                         />
                     </div>
                     <div className='mb-4 relative'>

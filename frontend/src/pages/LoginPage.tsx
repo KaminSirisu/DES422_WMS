@@ -14,20 +14,10 @@ const LoginPage: React.FC = () => {
     const { loginUser } = useAuth();
     //const [token, setToken] = useState<string>('');
 
-    const validatePassword = (password: string) => {
-        const regex = /^(?=.*[!@#$%^&*(),.?":{}|<>-]).{8,}$/;
-        return regex.test(password);
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-
-        if (!validatePassword(password)) {
-            toast.error("Password must be at least 8 characters and include a special character.");
-            setLoading(false);
-            return;
-        }
 
         try {
             const response = await login(username, password);

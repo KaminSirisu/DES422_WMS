@@ -4,6 +4,10 @@ exports.updateUserRole = async (req, res) => {
   const { userId, role } = req.body;
 
   try {
+    if (!userId || isNanNumber(userId)) {
+      return res.status(400).json({ message: "Valid userId is required"});
+    }
+
     if (!["admin", "user"].includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
     }

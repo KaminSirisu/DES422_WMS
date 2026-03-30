@@ -7,7 +7,11 @@ exports.signup = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    const existingUser = await prisma.user.findUnique({
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "Username, Email, and Password are required"});
+    }
+
+    const existingUser = await prisma.user.findFirst({
       where: {
         OR: [{ username }, { email }],
       },
