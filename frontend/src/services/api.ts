@@ -17,6 +17,11 @@ export const setAuthToken = (token: string | null) => {
   }
 }
 
+const token = localStorage.getItem("token");
+if (token) {
+  setAuthToken(token);
+}
+
 // Authentication Endpoints
 interface LoginResponse {
   token: string;
@@ -24,11 +29,17 @@ interface LoginResponse {
 
 export const login = async (username: string, password: string) : Promise<LoginResponse> => {
   const response = await api.post('/auth/login', {username, password});
+
+  const token = response.data.token;
+
+  localStorage.setItem("token", token);
+  setAuthToken(token);
+
   return response.data;
 }
 
-export const signup = async (username: string, password: string) : Promise<any> => {
-  const response = await api.post('/auth/signup', {username, password});
+export const signup = async (username: string, email: string, password: string) : Promise<any> => {
+  const response = await api.post('/auth/signup', {username, email, password});
   return response.data;
 }
 
@@ -72,8 +83,67 @@ interface Log {
   location: { name: string };
 }
 
+// Basic logs
 export const getLogs = async () : Promise<Log[]> => {
   const response = await api.get('/logs');
+  return response.data;
+}
+
+// Filter logs (inbound / outbound / data range)
+export const getLogsFiltered = async (
+  action?: string,
+  startDate?: string,
+  endDate?: string
+) : Promise<Log[]> => {
+  const response = await api.get('/logs', {
+    params: {
+      action, startDate, endDate
+    },
+  });
+  return response.data;
+}
+
+// Order API
+interface OrderItemInput {
+  itemId: number;
+  quantity: number;
+}
+
+interface OrderLine {
+  id: number;
+  itemId: number;
+  quantity: number;
+  fulfilled: number;
+}
+
+interface Order {
+  id: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED" | "BACKLOG";
+  createdAt: string;
+  lines: OrderLine[];
+}
+
+// Create order ( auto backlog )
+export const createOrder = async (
+  items: OrderItemInput[]
+) : Promise<{ message: string; order: Order }> => {
+  const response = await api.post('/orders', { items });
+  return response.data;
+}
+
+// Get all orders
+export const getOrders = async (status?: string): Promise<Order[]> => {
+  const response = await api.get('/orders', {
+    params: { status },
+  });
+  return response.data;
+}
+
+// Get backlog orders only
+export const getBacklogOrders = async (): Promise<Order[]> => {
+  const response = await api.get('/orders', {
+    params: { status: "BACKLOG" },
+  });
   return response.data;
 }
 

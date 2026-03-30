@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { signup } from '../services/api';
 import { useLocation } from 'wouter';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const RegisterPage: React.FC = () => {
     const [username, setUsername] = useState<string>('');
     const [password, setPassword] = useState<string>('');
+    const [email, setEmail] = useState<string>('');
     const [confirmPassword, setConfirmPassword] = useState<string>('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState<boolean>(false);
     const [ , setLocation ] = useLocation();
 
     const validatePassword = (password: string) => {
-        const regex = /^(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+        const regex = /^(?=.*[!@#$%^&*(),.?":{}|<>-]).{8,}$/;
         return regex.test(password);
     };
 
@@ -26,11 +30,12 @@ const RegisterPage: React.FC = () => {
         // Check Password match
         if (password != confirmPassword) {
             toast.error("Passwords do not match");
+            return;
         }
         try {
             setLoading(true);
-            await signup(username, password);
-            toast.success("Signup successfull! Please login.")
+            await signup(username, email, password);
+            toast.success("Signup successful! Please login.")
             // Handle successful registration (e.g., redirect to login page)
             setLocation('/login');
         } catch (err: any) {
@@ -59,9 +64,19 @@ const RegisterPage: React.FC = () => {
                         />
                     </div>
                     <div className='mb-4'>
+                        <input
+                            type='email'
+                            id='email'
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
+                            placeholder='Email'
+                        />
+                    </div>
+                    <div className='mb-4 relative'>
                         
                         <input
-                            type='password'
+                            type={showPassword ? 'text' : 'password'}
                             id='password'
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -69,17 +84,31 @@ const RegisterPage: React.FC = () => {
                             placeholder='Password'
                             minLength={8}
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500'
+                        >
+                            {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                        </button>
                     </div>
-                    <div className='mb-6'>
+                    <div className='mb-6 relative'>
                         
                         <input
-                            type='password'
+                            type={showConfirmPassword ? 'text' : 'password'}
                             id='confirmPassword'
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
                             placeholder='Confirm Password'
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500'
+                        >
+                            {showConfirmPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                        </button>
                     </div>
                     <div className='mb-4'>
                         <button

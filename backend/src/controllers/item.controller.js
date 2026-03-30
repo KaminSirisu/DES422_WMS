@@ -5,13 +5,17 @@ exports.withdrawItem = async (req, res) => {
   const userId = req.user.id;
 
   try {
+    if (!itemId || !locationId || quantity <= 0 ) {
+      return res.status(400).json({ message: "Item ID, Location ID and positive Quantity are required" });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       // 1. Find stock at specific location
       const stock = await tx.itemLocation.findUnique({
         where: {
           itemId_locationId: {
-            itemId,
-            locationId,
+            itemId: Number(itemId),
+            locationId: Number(locationId),
           },
         },
       });
