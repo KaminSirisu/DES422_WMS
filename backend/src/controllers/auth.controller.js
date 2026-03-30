@@ -5,14 +5,20 @@ const jwt = require("jsonwebtoken");
 // SIGNUP
 exports.signup = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { username },
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "Username, Email, and Password are required"});
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ username }, { email }],
+      },
     });
 
     if (existingUser) {
-      return res.status(400).json({ message: "Username already exists"});
+      return res.status(400).json({ message: "Username or Email already exists"});
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -22,6 +28,7 @@ exports.signup = async (req, res) => {
         username,
         password: hashed,
         role: "user",
+        email,
       },
     });
 
@@ -29,7 +36,7 @@ exports.signup = async (req, res) => {
     res.json(safeUser);
   } catch (err) {
     if (err.code === "P2002") {
-      return res.status(400).json({ message: "Username already exists" });
+      return res.status(400).json({ message: "Username or Email already exists" });
     }
     res.status(500).json({ message: "Internal server error" });
   }

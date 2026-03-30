@@ -6,6 +6,8 @@ const logRoutes = require("./routes/log.routes");
 const adminRoutes = require("./routes/admin.routes");
 const authRoutes = require("./routes/auth.routes");
 const itemRoutes = require("./routes/item.routes");
+const orderRoutes = require("./routes/order.routes");
+const inboundRoutes = require("./routes/inbound.routes");
 
 const app = express();
 
@@ -16,6 +18,9 @@ app.use("/logs", logRoutes);
 app.use("/admin", adminRoutes);
 app.use("/auth", authRoutes);
 app.use("/items", itemRoutes);
+
+app.use("/orders", orderRoutes);
+app.use("/inbound", inboundRoutes);
 
 const PORT = 3000;
 app.listen(PORT, () => {

@@ -21,13 +21,14 @@ enum OrderStatus {
   PROCESSING
   COMPLETED
   CANCELLED
+  BACKLOG
 }
 
 enum LogAction {
   WITHDRAW
   ADD
-  TRANSFER_OUT // Added to track the exit part of a move
-  TRANSFER_IN  // Added to track the entry part of a move
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 //
@@ -37,14 +38,14 @@ enum LogAction {
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
-  email     String?  @unique
+  email     String?   @unique
   password  String
   role      Role     @default(user)
   createdAt DateTime @default(now())
 
   logs      Log[]
   orders    Order[]
-  transfers Transfer[] // Added relation
+  transfers Transfer[]
 }
 
 //
@@ -54,12 +55,13 @@ model User {
 model Item {
   id        Int      @id @default(autoincrement())
   name      String
+  minStock  Int      @default(10) // 👈 NEW (low stock detection)
   createdAt DateTime @default(now())
 
-  locations ItemLocation[]
-  logs      Log[]
+  locations  ItemLocation[]
+  logs       Log[]
   orderLines OrderLine[]
-  transfers  Transfer[]    // Added relation
+  transfers  Transfer[]
 }
 
 //
@@ -68,14 +70,14 @@ model Item {
 
 model Location {
   id        Int      @id @default(autoincrement())
-  name      String   // e.g. "A1", "B2"
-  capacity  Int?
+  name      String
+  capacity  Int?     // used for "almost full"
   createdAt DateTime @default(now())
 
   items         ItemLocation[]
   logs          Log[]
-  transfersFrom Transfer[] @relation("FromLocation") // Added
-  transfersTo   Transfer[] @relation("ToLocation")   // Added
+  transfersFrom Transfer[] @relation("FromLocation")
+  transfersTo   Transfer[] @relation("ToLocation")
 }
 
 //
@@ -95,7 +97,7 @@ model ItemLocation {
 }
 
 //
-// NEW: TRANSFER MODEL
+// TRANSFER
 //
 
 model Transfer {
@@ -114,7 +116,7 @@ model Transfer {
 }
 
 //
-// LOGS
+// LOGS (for audit & reports)
 //
 
 model Log {
@@ -132,7 +134,7 @@ model Log {
 }
 
 //
-// ORDERS (UNCHANGED)
+// ORDERS
 //
 
 model Order {
@@ -145,11 +147,16 @@ model Order {
   lines OrderLine[]
 }
 
+//
+// ORDER LINE (important for backlog handling)
+//
+
 model OrderLine {
   id        Int @id @default(autoincrement())
   orderId   Int
   itemId    Int
   quantity  Int
+  fulfilled Int @default(0) // 👈 NEW (track fulfilled qty)
 
   order Order @relation(fields: [orderId], references: [id])
   item  Item  @relation(fields: [itemId], references: [id])

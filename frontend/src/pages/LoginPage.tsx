@@ -3,14 +3,17 @@ import { toast } from 'react-toastify';
 import { login, setAuthToken } from '../services/api';
 import { useLocation } from 'wouter';
 import { useAuth } from '../context/AuthContext';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const LoginPage: React.FC = () => {
     const [username, setUsername] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [ , setLocation ] = useLocation();
     const { loginUser } = useAuth();
     //const [token, setToken] = useState<string>('');
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,16 +52,24 @@ const LoginPage: React.FC = () => {
                         />
                         
                     </div>
-                    <div className='mb-6'>
+                    <div className='mb-6 relative'>
                         <input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             id="password"
                             className='shadow appearance-none border border-gray-300 rounded-lg py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline w-full'
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder='Password'
+                            minLength={8}
                             required
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500'
+                        >
+                            {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                        </button>
                     </div>
                     <div className='flex items-center justify-between mb-4'>
                         <button
