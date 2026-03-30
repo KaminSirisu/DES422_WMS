@@ -4,37 +4,65 @@ const jwt = require("jsonwebtoken");
 
 // SIGNUP
 exports.signup = async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  const hashed = await bcrypt.hash(password, 10);
+    const existingUser = await prisma.user.findUnique({
+      where: { username },
+    });
 
-  const user = await prisma.user.create({
-    data: {
-      username,
-      password: hashed,
-      role: "user",
-    },
-  });
+    if (existingUser) {
+      return res.status(400).json({ message: "Username already exists"});
+    }
 
-  const { password: _, ...safeUser } = user;
-  res.json(safeUser);
+    const hashed = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hashed,
+        role: "user",
+      },
+    });
+
+    const { password: _, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (err) {
+    if (err.code === "P2002") {
+      return res.status(400).json({ message: "Username already exists" });
+    }
+    res.status(500).json({ message: "Internal server error" });
+  }
+  
 };
 
 // LOGIN
 exports.login = async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { username } });
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username and Password are required"});
+    }
 
-  if (!user) return res.status(400).json({ message: "User not found" });
+    const user = await prisma.user.findUnique({ where: { username } });
 
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(400).json({ message: "Wrong password" });
+    if (!user) return res.status(400).json({ message: "User not found" });
 
-  const token = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET
-  );
+    const match = await bcrypt.compare(password, user.password);
 
-  res.json({ token });
+    if (!match) return res.status(400).json({ message: "Wrong password" });
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d"},
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+  
 };

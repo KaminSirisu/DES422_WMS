@@ -26,6 +26,8 @@ enum OrderStatus {
 enum LogAction {
   WITHDRAW
   ADD
+  TRANSFER_OUT // Added to track the exit part of a move
+  TRANSFER_IN  // Added to track the entry part of a move
 }
 
 //
@@ -35,12 +37,14 @@ enum LogAction {
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
+  email     String?  @unique
   password  String
   role      Role     @default(user)
   createdAt DateTime @default(now())
 
-  logs   Log[]
-  orders Order[]
+  logs      Log[]
+  orders    Order[]
+  transfers Transfer[] // Added relation
 }
 
 //
@@ -55,10 +59,11 @@ model Item {
   locations ItemLocation[]
   logs      Log[]
   orderLines OrderLine[]
+  transfers  Transfer[]    // Added relation
 }
 
 //
-// LOCATION (SIMPLIFIED)
+// LOCATION
 //
 
 model Location {
@@ -67,8 +72,10 @@ model Location {
   capacity  Int?
   createdAt DateTime @default(now())
 
-  items ItemLocation[]
-  logs  Log[]
+  items         ItemLocation[]
+  logs          Log[]
+  transfersFrom Transfer[] @relation("FromLocation") // Added
+  transfersTo   Transfer[] @relation("ToLocation")   // Added
 }
 
 //
@@ -88,7 +95,26 @@ model ItemLocation {
 }
 
 //
-// LOGS (TRACK EVERYTHING)
+// NEW: TRANSFER MODEL
+//
+
+model Transfer {
+  id             Int      @id @default(autoincrement())
+  itemId         Int
+  fromLocationId Int
+  toLocationId   Int
+  userId         Int
+  quantity       Int
+  createdAt      DateTime @default(now())
+
+  item         Item     @relation(fields: [itemId], references: [id])
+  fromLocation Location @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocation   Location @relation("ToLocation", fields: [toLocationId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+//
+// LOGS
 //
 
 model Log {
@@ -106,7 +132,7 @@ model Log {
 }
 
 //
-// ORDERS (REQUEST SYSTEM)
+// ORDERS (UNCHANGED)
 //
 
 model Order {
