@@ -1,135 +1,189 @@
-import React, { useState } from 'react';
-import { toast } from 'react-toastify';
-import { signup } from '../services/api';
-import { useLocation } from 'wouter';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+// ============================================================
+// REGISTER PAGE
+// ============================================================
 
-const RegisterPage: React.FC = () => {
-    const [username, setUsername] = useState<string>('');
-    const [password, setPassword] = useState<string>('');
-    const [email, setEmail] = useState<string>('');
-    const [confirmPassword, setConfirmPassword] = useState<string>('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [ , setLocation ] = useLocation();
+import { useState } from 'react'
+import { useNavigate } from 'react-router'
+import { Lock, Mail, User, Eye, EyeOff, Building2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { authService } from '../services/auth.service'
+import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 
-    const validatePassword = (password: string) => {
-        const regex = /^(?=.*[!@#$%^&*(),.?":{}|<>-]).{8,}$/;
-        return regex.test(password);
-    };
+export function RegisterPage() {
+  const navigate = useNavigate()
 
-    const handleSubmit = async (e:React.FormEvent) => {
-        e.preventDefault();
+  const [username, setUsername] = useState('')
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
-        if (!validatePassword(password)) {
-            toast.error("Password must be at least 8 characters and include a special character.");
-            return;
-        }
+  const [showPassword, setShowPassword]               = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading]                     = useState(false)
 
-        // Check Password match
-        if (password != confirmPassword) {
-            toast.error("Passwords do not match");
-            return;
-        }
-        try {
-            setLoading(true);
-            await signup(username, email, password);
-            toast.success("Signup successful! Please login.")
-            // Handle successful registration (e.g., redirect to login page)
-            setLocation('/login');
-        } catch (err: any) {
-            console.error("Registration error:", err);
-            toast.error(err.response?.data?.message || "Signup failed. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
+  const [errors, setErrors] = useState({
+    username: '', email: '', password: '', confirmPassword: '',
+  })
 
-    return (
-        <div className='min-h-screen flex items-center justify-center bg-gray-100'>
-            <div className='bg-white p-8 rounded-lg shadow-md w-full max-w-md'>
-                <h2 className='text-2xl font-bold text-center mb-4'>Create New Account</h2>
-                <h3 className='text-sm text-gray-600 mb-2'>Enter your details below</h3>
+  const validate = (): boolean => {
+    const e = { username: '', email: '', password: '', confirmPassword: '' }
 
-                <form onSubmit={handleSubmit}>
-                    <div className='mb-4'>
-                        <input
-                            type='text'
-                            id='username'
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-                            placeholder='Username'
-                        />
-                    </div>
-                    <div className='mb-4'>
-                        <input
-                            type='email'
-                            id='email'
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-                            placeholder='Email'
-                            required
-                        />
-                    </div>
-                    <div className='mb-4 relative'>
-                        
-                        <input
-                            type={showPassword ? 'text' : 'password'}
-                            id='password'
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-                            placeholder='Password'
-                            minLength={8}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500'
-                        >
-                            {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-                        </button>
-                    </div>
-                    <div className='mb-6 relative'>
-                        
-                        <input
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            id='confirmPassword'
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            className='shadow appearance-none border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline'
-                            placeholder='Confirm Password'
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className='absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500'
-                        >
-                            {showConfirmPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-                        </button>
-                    </div>
-                    <div className='mb-4'>
-                        <button
-                            type='submit'
-                            disabled={loading}
-                            className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline w-full'
-                        >
-                            {loading ? "Signing up..." : "Sign Up"}
-                        </button>
-                    </div>
-                    <div className='justify-center flex flex-row gap-1'>
-                        <h1 className='text-sm'>Already have an account?</h1>
-                        <a href="/login" className='text-blue-500 hover:text-blue-700 text-sm'>
-                            Log in
-                        </a>
-                    </div>
-                </form>
-            </div>
+    if (!username.trim())               e.username = 'Username is required'
+    if (!email.trim())                  e.email    = 'Email is required'
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email  = 'Invalid email format'
+
+    if (!password)                      e.password = 'Password is required'
+    else if (!/^(?=.*[!@#$%^&*(),.?":{}|<>\-_]).{8,}$/.test(password))
+                                        e.password = 'Min 8 chars + special character'
+
+    if (password !== confirmPassword)   e.confirmPassword = 'Passwords do not match'
+
+    setErrors(e)
+    return !e.username && !e.email && !e.password && !e.confirmPassword
+  }
+
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    if (!validate()) return
+
+    setIsLoading(true)
+    try {
+      await authService.signup({ username, email, password })
+      toast.success('Account created! Please sign in.')
+      navigate('/login')
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.message || 'Registration failed'
+      toast.error(msg)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      {/* LEFT PANEL */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-sidebar p-12">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500">
+            <Building2 className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-white">CoreLink</p>
+            <p className="text-xs text-white/40">Warehouse Management</p>
+          </div>
         </div>
-    )
-}
 
-export default RegisterPage
+        <h1 className="text-4xl font-bold text-white">
+          Start managing <br />
+          your warehouse today.
+        </h1>
+
+        <p className="text-xs text-white/20">© 2025 CoreLink WMS</p>
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div className="flex w-full lg:w-1/2 flex-col items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+          <h2 className="text-2xl font-bold text-gray-900">Create account</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Fill in your details to get started
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Username"
+              placeholder="your_username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              error={errors.username}
+              leftIcon={<User className="h-4 w-4" />}
+            />
+
+            <Input
+              label="Email"
+              type="email"
+              placeholder="you@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              error={errors.email}
+              leftIcon={<Mail className="h-4 w-4" />}
+            />
+
+            {/* Password */}
+            <div className="relative">
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={errors.password}
+                leftIcon={<Lock className="h-4 w-4" />}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-[34px] text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              <p className="mt-1 text-xs text-gray-400">
+                At least 8 characters + special character
+              </p>
+            </div>
+
+            {/* Confirm Password */}
+            <div className="relative">
+              <Input
+                label="Confirm Password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                error={errors.confirmPassword}
+                leftIcon={<Lock className="h-4 w-4" />}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-[34px] text-gray-400 hover:text-gray-600"
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <Button type="submit" isLoading={isLoading} className="w-full">
+              Create account
+            </Button>
+          </form>
+
+          {/* DIVIDER */}
+          <div className="my-6 flex items-center">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="px-3 text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* GOOGLE (UI only) */}
+          <button className="w-full border rounded-lg py-2 text-sm hover:bg-gray-50">
+            Continue with Google
+          </button>
+
+          {/* SIGN IN LINK */}
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Already have an account?{' '}
+            <span
+              onClick={() => navigate('/login')}
+              className="text-blue-500 cursor-pointer hover:underline"
+            >
+              Sign in
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
