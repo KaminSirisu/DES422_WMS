@@ -21,8 +21,8 @@ export function ItemsPage() {
   const { data: items, isLoading, refetch } = useApi(() => adminService.getItems())
 
   // ── Modal state ───────────────────────────────────────
-  const [showModal, setShowModal]     = useState(false)
-  const [editItem, setEditItem]       = useState<Item | null>(null)  // null = create mode
+  const [showModal, setShowModal] = useState(false)
+  const [editItem, setEditItem] = useState<Item | null>(null)  // null = create mode
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ── Form state ────────────────────────────────────────
@@ -47,8 +47,8 @@ export function ItemsPage() {
   // ── Validate ─────────────────────────────────────────
   const validate = (): boolean => {
     const errs = { name: '', minStock: '' }
-    if (!form.name.trim())   errs.name = 'Name is required'
-    if (form.minStock < 0)   errs.minStock = 'Min stock must be ≥ 0'
+    if (!form.name.trim()) errs.name = 'Name is required'
+    if (form.minStock < 0) errs.minStock = 'Min stock must be ≥ 0'
     setFormErrors(errs)
     return !errs.name && !errs.minStock
   }

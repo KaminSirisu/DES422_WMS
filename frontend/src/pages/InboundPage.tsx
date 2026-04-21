@@ -23,7 +23,7 @@ interface InboundForm {
 
 export function InboundPage() {
   // ดึง items และ locations สำหรับ dropdown
-  const { data: items,     isLoading: itemsLoading }     = useApi(() => adminService.getItems())
+  const { data: items, isLoading: itemsLoading } = useApi(() => adminService.getItems())
   const { data: locations, isLoading: locationsLoading } = useApi(() => adminService.getLocations())
 
   const [form, setForm] = useState<InboundForm>({ itemId: '', locationId: '', quantity: '' })
@@ -36,7 +36,7 @@ export function InboundPage() {
   // ── Validate ──────────────────────────────────────────
   const validate = (): boolean => {
     const errs = { itemId: '', locationId: '', quantity: '' }
-    if (!form.itemId)     errs.itemId     = 'Select an item'
+    if (!form.itemId) errs.itemId = 'Select an item'
     if (!form.locationId) errs.locationId = 'Select a location'
     if (!form.quantity || Number(form.quantity) <= 0)
       errs.quantity = 'Quantity must be > 0'
@@ -52,9 +52,9 @@ export function InboundPage() {
     setIsSubmitting(true)
     try {
       const result = await inboundService.addStock({
-        itemId:     Number(form.itemId),
+        itemId: Number(form.itemId),
         locationId: Number(form.locationId),
-        quantity:   Number(form.quantity),
+        quantity: Number(form.quantity),
       })
       toast.success(result.message || 'Stock added successfully')
       setLastResult(result.message)

@@ -42,7 +42,8 @@ export function LoginPage() {
     try {
       await login({ username, password })
       toast.success('Welcome back!')
-      navigate('/dashboard')
+      // Delay เล็กน้อยให้ toast แสดงก่อน
+      setTimeout(() => navigate('/dashboard'), 500)
     } catch (err: unknown) {
       const msg =
         (err as any)?.response?.data?.message || 'Login failed'
