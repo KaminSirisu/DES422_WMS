@@ -1,6 +1,6 @@
 // ============================================================
-// INBOUND PAGE (Admin only)
-// POST /inbound - เพิ่มสต็อกเข้า location ที่เลือก
+// INBOUND + PUTAWAY PAGE
+// POST /inbound - รับสินค้าเข้าและจัดเก็บเข้าตำแหน่งที่เลือก
 // Backend จะ auto-process backlog orders อัตโนมัติ
 // ============================================================
 
@@ -75,8 +75,8 @@ export function InboundPage() {
   return (
     <div className="max-w-2xl">
       <PageHeader
-        title="Stock Receiving"
-        subtitle="Add incoming stock to a warehouse location"
+        title="Inbound & Putaway"
+        subtitle="Receive incoming stock and place it into the correct warehouse location"
       />
 
       {/* Success banner */}
@@ -92,7 +92,7 @@ export function InboundPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100">
             <ArrowDownToLine className="h-4 w-4 text-brand-600" />
           </div>
-          <h2 className="text-base font-semibold text-gray-800">New Stock Receipt</h2>
+          <h2 className="text-base font-semibold text-gray-800">Receive and Store Stock</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -155,7 +155,7 @@ export function InboundPage() {
                 <p>Item: <strong>{selectedItem.name}</strong></p>
                 <p>Quantity: <strong>+{form.quantity} units</strong></p>
                 <p className="text-xs text-brand-500 mt-2">
-                  ⚡ Backend will automatically fulfill any backlog orders for this item
+                  This records both receiving and putaway into the selected location.
                 </p>
               </div>
             </div>

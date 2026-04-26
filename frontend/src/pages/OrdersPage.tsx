@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
 import { orderService } from '../services/order.service'
+import { itemService } from '../services/item.service'
 import { useAuth } from '../context/AuthContext'
 import type { Item } from '../types'
 import { Button } from '../components/ui/Button'
@@ -26,30 +27,21 @@ interface OrderLineInput {
 }
 
 export function OrdersPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
+  const isCustomer = user?.role === 'user'
 
   // ดึง orders: admin ดูทั้งหมด, user ดูของตัวเอง
-  const { data: orders, isLoading: ordersLoading, refetch } = useApi(
+  const { data: orders, isLoading: ordersLoading, error: ordersError, refetch } = useApi(
     () => isAdmin ? adminService.getOrders() : orderService.getMyOrders()
   )
-  const { data: items, isLoading: itemsLoading } = useApi(() => adminService.getItems())
-  // ดึง stock ทุก location สำหรับแสดงใน form
-  const { data: allStocks, isLoading: stockLoading } = useApi(async () => {
-    const itemsList = await adminService.getItems()
-    const stocks: Record<number, number> = {}
-    for (const item of itemsList) {
-      const locs = await adminService.getItemLocations(item.id)
-      stocks[item.id] = locs.reduce((sum, l) => sum + l.quantity, 0)
-    }
-    return stocks
-  })
+  const { data: items, isLoading: itemsLoading, error: itemsError } = useApi(() => itemService.getAll())
 
   const [showModal, setShowModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Dynamic order lines: เพิ่ม/ลบ items ใน order ได้
   const [lines, setLines] = useState<OrderLineInput[]>([{ itemId: '', quantity: '1' }])
 
-  const isLoading = ordersLoading || itemsLoading || stockLoading
+  const isLoading = ordersLoading || itemsLoading
 
   // ── Line management ───────────────────────────────────
   const addLine = () => setLines(l => [...l, { itemId: '', quantity: '1' }])
@@ -83,9 +75,6 @@ export function OrdersPage() {
         })),
       })
       toast.success(`Order created! Status: ${result.order.status}`)
-      if (result.order.status === 'BACKLOG') {
-        toast('Some items were in backlog — will fulfill when stock arrives', { icon: '⚠️' })
-      }
       setShowModal(false)
       setLines([{ itemId: '', quantity: '1' }])
       refetch()
@@ -118,6 +107,15 @@ export function OrdersPage() {
 
   // Check if order can be cancelled (only PENDING or BACKLOG)
   const canCancel = (status: string) => status === 'PENDING' || status === 'BACKLOG'
+  const combinedError = (() => {
+    if (itemsError?.includes('404')) {
+      return 'Item catalog endpoint was not found. The backend server needs to be restarted to load GET /items.'
+    }
+    if (ordersError?.includes('404')) {
+      return 'Order endpoint was not found. The backend server may be running an outdated build.'
+    }
+    return ordersError || itemsError || null
+  })()
 
   if (isLoading) return <Spinner className="h-96" size="lg" />
 
@@ -127,11 +125,20 @@ export function OrdersPage() {
         title="Orders"
         subtitle={isAdmin ? `${orders?.length ?? 0} orders total` : 'Create a new order'}
         action={
-          <Button onClick={() => setShowModal(true)} leftIcon={<Plus />}>
-            New Order
-          </Button>
+          isCustomer ? (
+            <Button onClick={() => setShowModal(true)} leftIcon={<Plus />}>
+              New Order
+            </Button>
+          ) : undefined
         }
       />
+
+      {combinedError && (
+        <Card className="mb-5 border border-red-200 bg-red-50 px-5 py-4">
+          <p className="text-sm font-medium text-red-700">Unable to load complete order data</p>
+          <p className="mt-1 text-xs text-red-600">{combinedError}</p>
+        </Card>
+      )}
 
       <Card>
         {!orders || orders.length === 0 ? (
@@ -225,10 +232,10 @@ export function OrdersPage() {
                   >
                     <option value="">-- Select item --</option>
                     {items?.map(item => {
-                      const stock = allStocks?.[item.id] ?? 0
+                      const stock = item.totalStock ?? 0
                       return (
-                        <option key={item.id} value={item.id} disabled={stock === 0}>
-                          {item.name} {stock > 0 ? `(stock: ${stock})` : '(out of stock)'}
+                        <option key={item.id} value={item.id}>
+                          {item.name} {stock > 0 ? `(stock: ${stock})` : '(out of stock - backlog allowed)'}
                         </option>
                       )
                     })}
@@ -268,7 +275,7 @@ export function OrdersPage() {
               {lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0)} units total
             </p>
             <p className="mt-1 text-gray-400">
-              If stock is insufficient, order will be placed in BACKLOG and auto-fulfilled when stock arrives.
+              New orders are created as PENDING first. Warehouse staff will pick and process them after review.
             </p>
           </div>
 

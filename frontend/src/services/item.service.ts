@@ -1,16 +1,15 @@
 // ============================================================
 // ITEM SERVICE
-// Backend routes: /items (admin only)
+// Backend routes: /items (authenticated users)
 // ============================================================
 
 import api from './api'
 import type { Item, ItemLocation, WithdrawPayload, InboundResponse } from '../types'
 
 export const itemService = {
-  // GET /items - ดึงรายการ items ทั้งหมด (Admin)
-  // Note: Backend ยังไม่มี GET /items แต่ใช้ /admin/items แทน
+  // GET /items - ดึงรายการ items ทั้งหมดพร้อม total stock
   getAll: async (): Promise<Item[]> => {
-    const { data } = await api.get<Item[]>('/admin/items')
+    const { data } = await api.get<Item[]>('/items')
     return data
   },
 

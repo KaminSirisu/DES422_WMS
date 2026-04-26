@@ -1,107 +1,206 @@
 const prisma = require("../utils/prisma");
 
-exports.createOrder = async (req, res) => {
-    const { items } = req.body;
-    // items = [{items: 1, quantity: 10}]
-    const userId = req.user.id;
-
+async function getAllocationStrategy() {
     try {
+        if (typeof prisma.systemSetting?.findUnique !== "function") {
+            return "FIFO";
+        }
+
         const settings = await prisma.systemSetting.findUnique({ where: { id: 1 } });
-        const allocationStrategy = settings?.allocationStrategy || "FIFO";
-        const stockOrderBy = allocationStrategy === "LIFO" ? { id: "desc" } : { id: "asc" };
+        return settings?.allocationStrategy || "FIFO";
+    } catch {
+        return "FIFO";
+    }
+}
 
-        const result = await prisma.$transaction(async (tx) => {
-            let orderStatus = "COMPLETED";
-            const orderLinesData = [];
-
-            for (const item of items) {
-                const { itemId, quantity } = item;
-
-                // 1. Get all stock locations (sorted by quantity DESC or FIFO)
-                const stocks = await tx.itemLocation.findMany({
-                    where: { itemId },
-                    orderBy: stockOrderBy
-                })
-
-                let remaining = quantity;
-                let fulfilled = 0;
-
-                for (const stock of stocks) {
-                    if (remaining <= 0) break;
-
-                    const takeQty = Math.min(stock.quantity, remaining);
-
-                    // 2. Deduct stock
-                    await tx.itemLocation.update({
-                        where: {
-                            itemId_locationId: {
-                                itemId,
-                                locationId: stock.locationId,
-                            },
-                        },
-                        data: {
-                            quantity: {
-                                decrement: takeQty
-                            }
-                        }
-                    });
-
-                    // 3. Create log
-                    await tx.log.create({
-                        data: {
-                            userId,
-                            itemId,
-                            locationId: stock.locationId,
-                            quantity: takeQty,
-                            action: "WITHDRAW",
-                        }
-                    });
-
-                    fulfilled += takeQty;
-                    remaining -= takeQty;
-                }
-
-                // 4. Determine backlog
-                if (fulfilled < quantity) {
-                    orderStatus = "BACKLOG";
-                }
-
-                orderLinesData.push({
-                    itemId,
-                    quantity,
-                    fulfilled,
-                })
-            }
-
-            // 5. Create order
-            const order = await tx.order.create({
-                data: {
-                    userId,
-                    status: orderStatus,
-                    lines: {
-                        create: orderLinesData,
-                    }
-                },
-                include: {
-                    lines: true,
-                }
-            });
-
-            return order;
-        });
+async function createOrderAuditLog(userId, orderId, metadata) {
+    try {
+        if (typeof prisma.auditLog?.create !== "function") {
+            return;
+        }
 
         await prisma.auditLog.create({
             data: {
                 userId,
                 action: "ORDER_CREATE",
                 entityType: "ORDER",
-                entityId: String(result.id),
-                metadata: {
-                    status: result.status,
-                    lineCount: result.lines.length,
-                    allocationStrategy
-                }
+                entityId: String(orderId),
+                metadata
             }
+        });
+    } catch {
+        // Do not block order creation if audit logging is unavailable.
+    }
+}
+
+async function allocateOrderStock(tx, order, userId, stockOrderBy) {
+    for (const line of order.lines) {
+        const remaining = line.quantity - line.fulfilled;
+        if (remaining <= 0) continue;
+
+        const stocks = await tx.itemLocation.findMany({
+            where: {
+                itemId: line.itemId,
+                quantity: { gt: 0 }
+            },
+            orderBy: stockOrderBy
+        });
+
+        let qtyToAllocate = remaining;
+
+        for (const stock of stocks) {
+            if (qtyToAllocate <= 0) break;
+
+            const takeQty = Math.min(stock.quantity, qtyToAllocate);
+
+            await tx.itemLocation.update({
+                where: {
+                    itemId_locationId: {
+                        itemId: line.itemId,
+                        locationId: stock.locationId,
+                    },
+                },
+                data: {
+                    quantity: {
+                        decrement: takeQty
+                    }
+                }
+            });
+
+            await tx.log.create({
+                data: {
+                    userId,
+                    itemId: line.itemId,
+                    locationId: stock.locationId,
+                    quantity: takeQty,
+                    action: "WITHDRAW",
+                }
+            });
+
+            await tx.orderLine.update({
+                where: { id: line.id },
+                data: {
+                    fulfilled: {
+                        increment: takeQty
+                    }
+                }
+            });
+
+            qtyToAllocate -= takeQty;
+        }
+    }
+}
+
+async function hasEnoughStockForRemaining(tx, order) {
+    for (const line of order.lines) {
+        const remaining = line.quantity - line.fulfilled;
+        if (remaining <= 0) continue;
+
+        const stocks = await tx.itemLocation.findMany({
+            where: {
+                itemId: line.itemId,
+                quantity: { gt: 0 }
+            },
+            select: { quantity: true }
+        });
+
+        const totalAvailable = stocks.reduce((sum, stock) => sum + stock.quantity, 0);
+        if (totalAvailable < remaining) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+async function reconcileBacklogOrder(tx, order) {
+    if (order.status !== "BACKLOG") return order.status;
+
+    const isFullyAllocated = order.lines.every((line) => line.fulfilled >= line.quantity);
+    const hasStockNow = isFullyAllocated || await hasEnoughStockForRemaining(tx, order);
+
+    if (!hasStockNow) return order.status;
+
+    await tx.order.update({
+        where: { id: order.id },
+        data: { status: "PENDING" }
+    });
+
+    return "PENDING";
+}
+
+async function attachAvailableStock(tx, order) {
+    const itemIds = [...new Set(order.lines.map((line) => line.itemId))];
+    const stocks = await tx.itemLocation.findMany({
+        where: {
+            itemId: { in: itemIds }
+        },
+        select: {
+            itemId: true,
+            quantity: true
+        }
+    });
+
+    const availableByItem = stocks.reduce((acc, stock) => {
+        acc[stock.itemId] = (acc[stock.itemId] || 0) + stock.quantity;
+        return acc;
+    }, {});
+
+    return {
+        ...order,
+        lines: order.lines.map((line) => ({
+            ...line,
+            availableStock: availableByItem[line.itemId] || 0
+        }))
+    };
+}
+
+function getRemainingShortage(lines) {
+    return lines
+        .filter((line) => line.fulfilled < line.quantity)
+        .map((line) => ({
+            itemId: line.itemId,
+            itemName: line.item?.name || `Item #${line.itemId}`,
+            remaining: line.quantity - line.fulfilled
+        }));
+}
+
+exports.createOrder = async (req, res) => {
+    const { items } = req.body;
+    const userId = req.user.id;
+
+    try {
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: "At least one order item is required" });
+        }
+
+        const orderLinesData = items.map((item) => ({
+            itemId: Number(item.itemId),
+            quantity: Number(item.quantity),
+            fulfilled: 0,
+        }));
+
+        if (orderLinesData.some((item) => !item.itemId || item.quantity <= 0)) {
+            return res.status(400).json({ message: "Invalid order item payload" });
+        }
+
+        const result = await prisma.order.create({
+            data: {
+                userId,
+                status: "PENDING",
+                lines: {
+                    create: orderLinesData,
+                }
+            },
+            include: {
+                lines: true,
+            }
+        });
+
+        await createOrderAuditLog(userId, result.id, {
+            status: result.status,
+            lineCount: result.lines.length,
+            allocationStrategy: "DEFERRED_TO_STAFF"
         });
 
         res.json({
@@ -118,15 +217,32 @@ exports.createOrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
     const userId = req.user.id;
     try {
-        const orders = await prisma.order.findMany({
-            where: { userId },
-            include: {
-                lines: {
-                    include: { item: true }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
+        const orders = await prisma.$transaction(async (tx) => {
+            const currentOrders = await tx.order.findMany({
+                where: { userId },
+                include: {
+                    lines: {
+                        include: { item: true }
+                    }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            for (const order of currentOrders) {
+                await reconcileBacklogOrder(tx, order);
+            }
+
+            return tx.order.findMany({
+                where: { userId },
+                include: {
+                    lines: {
+                        include: { item: true }
+                    }
+                },
+                orderBy: { createdAt: 'desc' }
+            }).then((orders) => Promise.all(orders.map((order) => attachAvailableStock(tx, order))));
         });
+
         res.json(orders);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -136,19 +252,99 @@ exports.getMyOrders = async (req, res) => {
 // GET /orders/picking/pending - ดู orders ที่ต้อง pick (สำหรับ warehouse staff)
 exports.getPendingPickingOrders = async (req, res) => {
     try {
-        const orders = await prisma.order.findMany({
-            where: {
-                status: { in: ['PENDING', 'BACKLOG', 'PROCESSING'] }
-            },
-            include: {
-                user: { select: { id: true, username: true } },
-                lines: {
-                    include: { item: true }
-                }
-            },
-            orderBy: { createdAt: 'asc' }
+        const orders = await prisma.$transaction(async (tx) => {
+            const currentOrders = await tx.order.findMany({
+                where: {
+                    status: { in: ['PENDING', 'BACKLOG', 'PROCESSING'] }
+                },
+                include: {
+                    user: { select: { id: true, username: true } },
+                    lines: {
+                        include: { item: true }
+                    }
+                },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            for (const order of currentOrders) {
+                await reconcileBacklogOrder(tx, order);
+            }
+
+            return tx.order.findMany({
+                where: {
+                    status: { in: ['PENDING', 'BACKLOG', 'PROCESSING'] }
+                },
+                include: {
+                    user: { select: { id: true, username: true } },
+                    lines: {
+                        include: { item: true }
+                    }
+                },
+                orderBy: { createdAt: 'asc' }
+            }).then((orders) => Promise.all(orders.map((order) => attachAvailableStock(tx, order))));
         });
+
         res.json(orders);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.getStaffDashboardSummary = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const [queueOrders, todayLogs] = await Promise.all([
+            prisma.$transaction(async (tx) => {
+                const currentOrders = await tx.order.findMany({
+                    where: {
+                        status: { in: ['PENDING', 'PROCESSING', 'BACKLOG'] }
+                    },
+                    include: { lines: true }
+                });
+
+                for (const order of currentOrders) {
+                    await reconcileBacklogOrder(tx, order);
+                }
+
+                return tx.order.findMany({
+                    where: {
+                        status: { in: ['PENDING', 'PROCESSING', 'BACKLOG'] }
+                    }
+                });
+            }),
+            prisma.log.findMany({
+                where: {
+                    userId,
+                    createdAt: { gte: todayStart }
+                }
+            })
+        ]);
+
+        const summary = {
+            queue: {
+                pending: queueOrders.filter((order) => order.status === 'PENDING').length,
+                processing: queueOrders.filter((order) => order.status === 'PROCESSING').length,
+                backlog: queueOrders.filter((order) => order.status === 'BACKLOG').length,
+                total: queueOrders.length
+            },
+            todayActivity: {
+                inboundUnits: todayLogs
+                    .filter((log) => log.action === 'ADD')
+                    .reduce((sum, log) => sum + log.quantity, 0),
+                pickedUnits: todayLogs
+                    .filter((log) => log.action === 'WITHDRAW')
+                    .reduce((sum, log) => sum + log.quantity, 0),
+                transferUnits: todayLogs
+                    .filter((log) => log.action === 'TRANSFER_IN' || log.action === 'TRANSFER_OUT')
+                    .reduce((sum, log) => sum + log.quantity, 0),
+                movementCount: todayLogs.length
+            }
+        };
+
+        res.json(summary);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -164,29 +360,121 @@ exports.updateOrderStatus = async (req, res) => {
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ message: "Invalid status" });
         }
+        const orderId = Number(id);
+
+        if (status === "PROCESSING") {
+            const allocationStrategy = await getAllocationStrategy();
+            const stockOrderBy = allocationStrategy === "LIFO" ? { id: "desc" } : { id: "asc" };
+
+            const order = await prisma.$transaction(async (tx) => {
+                const currentOrder = await tx.order.findUnique({
+                    where: { id: orderId },
+                    include: {
+                        lines: true,
+                        user: { select: { username: true } }
+                    }
+                });
+
+                if (!currentOrder) {
+                    throw new Error("Order not found");
+                }
+
+                if (currentOrder.status === "COMPLETED" || currentOrder.status === "CANCELLED") {
+                    throw new Error("This order can no longer be processed");
+                }
+
+                let workingOrder = currentOrder;
+                let attempts = 0;
+
+                while (attempts < 3) {
+                    await allocateOrderStock(tx, workingOrder, req.user.id, stockOrderBy);
+
+                    const refreshedOrder = await tx.order.findUnique({
+                        where: { id: orderId },
+                        include: {
+                            lines: { include: { item: true } },
+                            user: { select: { username: true } }
+                        }
+                    });
+
+                    const hasRemaining = refreshedOrder.lines.some((line) => line.fulfilled < line.quantity);
+                    if (!hasRemaining) {
+                        workingOrder = refreshedOrder;
+                        break;
+                    }
+
+                    const stockStillEnough = await hasEnoughStockForRemaining(tx, refreshedOrder);
+                    workingOrder = refreshedOrder;
+
+                    if (!stockStillEnough) {
+                        break;
+                    }
+
+                    attempts += 1;
+                }
+
+                const hasRemaining = workingOrder.lines.some((line) => line.fulfilled < line.quantity);
+                const nextStatus = hasRemaining ? "BACKLOG" : "PROCESSING";
+
+                const updatedOrder = await tx.order.update({
+                    where: { id: orderId },
+                    data: { status: nextStatus },
+                    include: {
+                        lines: { include: { item: true } },
+                        user: { select: { username: true } }
+                    }
+                });
+
+                const withStock = await attachAvailableStock(tx, updatedOrder);
+
+                return {
+                    ...withStock,
+                    shortage: nextStatus === "BACKLOG" ? getRemainingShortage(workingOrder.lines) : []
+                };
+            });
+
+            await createOrderAuditLog(req.user.id, orderId, {
+                status: order.status,
+                requestedStatus: status
+            });
+
+            return res.json(order);
+        }
+
+        const currentOrder = await prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                lines: true
+            }
+        });
+
+        if (!currentOrder) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        const hasRemaining = currentOrder.lines.some((line) => line.fulfilled < line.quantity);
+        if (hasRemaining) {
+            return res.status(400).json({ message: "Order cannot be completed until all items are picked" });
+        }
 
         const order = await prisma.order.update({
-            where: { id: Number(id) },
-            data: { status },
+            where: { id: orderId },
+            data: { status: "COMPLETED" },
             include: {
                 lines: { include: { item: true } },
                 user: { select: { username: true } }
             }
         });
 
-        await prisma.auditLog.create({
-            data: {
-                userId: req.user.id,
-                action: "ORDER_STATUS_UPDATE",
-                entityType: "ORDER",
-                entityId: String(id),
-                metadata: { status }
-            }
+        await createOrderAuditLog(req.user.id, orderId, {
+            status: order.status,
+            requestedStatus: status
         });
 
         res.json(order);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        const message = err.message === "Order not found" ? 404 : 400;
+        res.status(message).json({ message: err.message });
     }
 };
 

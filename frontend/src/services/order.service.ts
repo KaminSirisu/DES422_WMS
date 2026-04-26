@@ -9,7 +9,7 @@
 // ============================================================
 
 import api from './api'
-import type { Order, CreateOrderPayload } from '../types'
+import type { Order, CreateOrderPayload, StaffDashboardSummary } from '../types'
 
 export const orderService = {
   // GET /orders/me - ดู order ของตัวเอง
@@ -21,6 +21,11 @@ export const orderService = {
   // GET /orders/picking/pending - ดู orders ที่ต้อง pick
   getPendingPickingOrders: async (): Promise<Order[]> => {
     const { data } = await api.get<Order[]>('/orders/picking/pending')
+    return data
+  },
+
+  getStaffDashboardSummary: async (): Promise<StaffDashboardSummary> => {
+    const { data } = await api.get<StaffDashboardSummary>('/orders/staff/summary')
     return data
   },
 

@@ -8,6 +8,7 @@ const authRoutes = require("./routes/auth.routes");
 const itemRoutes = require("./routes/item.routes");
 const orderRoutes = require("./routes/order.routes");
 const inboundRoutes = require("./routes/inbound.routes");
+const staffRoutes = require("./routes/staff.routes");
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/items", itemRoutes);
 
 app.use("/orders", orderRoutes);
 app.use("/inbound", inboundRoutes);
+app.use("/staff", staffRoutes);
 
 const PORT = 3000;
 app.listen(PORT, () => {

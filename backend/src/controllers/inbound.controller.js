@@ -1,5 +1,29 @@
 const prisma = require("../utils/prisma");
 
+async function canResumeOrder(tx, orderId) {
+    const lines = await tx.orderLine.findMany({
+        where: { orderId }
+    });
+
+    const itemIds = [...new Set(lines.map((line) => line.itemId))];
+    const stocks = await tx.itemLocation.findMany({
+        where: {
+            itemId: { in: itemIds },
+            quantity: { gt: 0 }
+        }
+    });
+
+    const stockByItem = stocks.reduce((acc, stock) => {
+        acc[stock.itemId] = (acc[stock.itemId] || 0) + stock.quantity;
+        return acc;
+    }, {});
+
+    return lines.every((line) => {
+        const remaining = line.quantity - line.fulfilled;
+        return (stockByItem[line.itemId] || 0) >= remaining;
+    });
+}
+
 exports.addStock = async (req, res) => {
     const { itemId, locationId, quantity } = req.body;
     const userId = req.user.id;
@@ -39,86 +63,37 @@ exports.addStock = async (req, res) => {
                 },
             });
 
-            let remainingStock = quantity;
-
-            // 3. Get All order lines for this item
+            // 3. Find affected backlog orders and move them back to pending when stock is sufficient
             const allLines = await tx.orderLine.findMany({
-                where: { itemId },
+                where: {
+                    itemId: Number(itemId),
+                    order: {
+                        status: "BACKLOG"
+                    }
+                },
                 include: { order: true },
                 orderBy: {
                     order: { createdAt: "asc" }, // FIFO 
                 },
             });
 
-            // 4. Filter backlog in JS
-            const backlogLines = allLines.filter(
-                (line) => line.fulfilled < line.quantity
-            );
+            const affectedOrderIds = [...new Set(allLines.map((line) => line.orderId))];
 
-            for (const line of backlogLines) {
-                if (remainingStock <= 0) break;
-
-                const need = line.quantity - line.fulfilled;
-                const fulfillQty = Math.min(need, remainingStock);
-
-                // 5. Update fulfilled
-                await tx.orderLine.update({
-                    where: { id: line.id },
-                    data: {
-                        fulfilled: {
-                            increment: fulfillQty,
-                        },
-                    },
-                });
-
-                // 6. Deduct stock
-                await tx.itemLocation.update({
-                    where: {
-                        itemId_locationId: {
-                            itemId,
-                            locationId,
-                        },
-                    },
-                    data: {
-                        quantity: {
-                            decrement: fulfillQty,
-                        },
-                    },
-                });
-
-                // 7. Log auto-withdraw
-                await tx.log.create({
-                    data: {
-                        userId,
-                        itemId,
-                        locationId,
-                        quantity: fulfillQty,
-                        action: "WITHDRAW",
-                    },
-                });
-
-                remainingStock -= fulfillQty;
-
-                // 8. Check if order is completed
-                const updatedLines = await tx.orderLine.findMany({
-                    where: { orderId: line.orderId },
-                })
-
-                const isCompleted = updatedLines.every(
-                    (l) => l.fulfilled >= l.quantity
-                );
-                if (isCompleted) {
+            for (const orderId of affectedOrderIds) {
+                const resumable = await canResumeOrder(tx, orderId);
+                if (resumable) {
                     await tx.order.update({
-                        where: { id: line.orderId },
-                        data: { status: "COMPLETED" },
-                    })
+                        where: { id: orderId },
+                        data: { status: "PENDING" },
+                    });
                 }
             }
+
             return stock;
         });
 
         res.json({
-            message: "Stock added & backlog processed",
+            message: "Stock added and backlog queue rechecked",
             stock: result,
         });
     } catch (err) {

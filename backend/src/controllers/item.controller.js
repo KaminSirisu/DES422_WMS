@@ -1,5 +1,34 @@
 const prisma = require("../utils/prisma");
 
+exports.getAvailableItems = async (req, res) => {
+  try {
+    const items = await prisma.item.findMany({
+      include: {
+        locations: {
+          select: {
+            quantity: true
+          }
+        }
+      },
+      orderBy: { name: "asc" }
+    });
+
+    res.json(
+      items.map((item) => ({
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        category: item.category,
+        minStock: item.minStock,
+        createdAt: item.createdAt,
+        totalStock: item.locations.reduce((sum, location) => sum + location.quantity, 0)
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 exports.withdrawItem = async (req, res) => {
   const { itemId, locationId, quantity } = req.body;
   const userId = req.user.id;

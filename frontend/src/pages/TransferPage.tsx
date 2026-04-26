@@ -3,7 +3,7 @@
 // POST /admin/transfers - ย้ายสต็อกระหว่าง locations
 // ============================================================
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowLeftRight, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
@@ -41,6 +41,32 @@ export function TransferPage() {
   const [lastResult, setLastResult] = useState<string | null>(null)
 
   const isLoading = itemsLoading || locationsLoading
+  const sourceLocations = useMemo(
+    () => (locations ?? []).filter((loc) => (loc.currentStock ?? 0) > 0),
+    [locations]
+  )
+  const selectedSourceLocation = sourceLocations.find((loc) => loc.id === Number(form.fromLocationId))
+  const itemsInSourceLocation = useMemo(
+    () => (selectedSourceLocation?.items ?? []).filter((entry) => entry.quantity > 0),
+    [selectedSourceLocation]
+  )
+  const globallyAvailableItems = useMemo(() => {
+    const locationEntries = (locations ?? []).flatMap((loc) => loc.items ?? [])
+    const stockByItem = new Map<number, number>()
+
+    locationEntries.forEach((entry) => {
+      stockByItem.set(entry.itemId, (stockByItem.get(entry.itemId) ?? 0) + entry.quantity)
+    })
+
+    return (items ?? []).filter((item) => (stockByItem.get(item.id) ?? 0) > 0)
+  }, [items, locations])
+  const selectableItems = selectedSourceLocation
+    ? itemsInSourceLocation
+        .map((entry) => entry.item)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    : globallyAvailableItems
+  const selectedSourceEntry = itemsInSourceLocation.find((entry) => entry.itemId === Number(form.itemId))
+  const availableAtSource = selectedSourceEntry?.quantity ?? 0
 
   // ── Validate ──────────────────────────────────────────
   const validate = (): boolean => {
@@ -53,6 +79,8 @@ export function TransferPage() {
     }
     if (!form.quantity || Number(form.quantity) <= 0) {
       errs.quantity = 'Quantity must be > 0'
+    } else if (selectedSourceLocation && Number(form.quantity) > availableAtSource) {
+      errs.quantity = `Only ${availableAtSource} unit(s) available at this location`
     }
     setErrors(errs)
     return !errs.itemId && !errs.fromLocationId && !errs.toLocationId && !errs.quantity
@@ -99,7 +127,7 @@ export function TransferPage() {
       {/* Success banner */}
       {lastResult && (
         <div className="mb-5 flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
-          <CheckCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+          <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
           <p className="text-sm text-emerald-700">{lastResult}</p>
         </div>
       )}
@@ -113,25 +141,6 @@ export function TransferPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Item select */}
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">
-              Item <span className="text-red-400">*</span>
-            </label>
-            <select
-              value={form.itemId}
-              onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900
-                         focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-            >
-              <option value="">-- Select item --</option>
-              {items?.map(item => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-            {errors.itemId && <p className="text-xs text-red-500">{errors.itemId}</p>}
-          </div>
-
           {/* From Location */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-gray-700">
@@ -139,18 +148,50 @@ export function TransferPage() {
             </label>
             <select
               value={form.fromLocationId}
-              onChange={e => setForm(f => ({ ...f, fromLocationId: e.target.value }))}
+              onChange={e => setForm(f => ({
+                ...f,
+                fromLocationId: e.target.value,
+                itemId: '',
+                quantity: ''
+              }))}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900
                          focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
             >
               <option value="">-- Select source location --</option>
-              {locations?.map(loc => (
+              {sourceLocations.map(loc => (
                 <option key={loc.id} value={loc.id}>
-                  {loc.name}{loc.capacity ? ` (cap: ${loc.capacity})` : ''}
+                  {loc.name} ({loc.currentStock} units)
                 </option>
               ))}
             </select>
             {errors.fromLocationId && <p className="text-xs text-red-500">{errors.fromLocationId}</p>}
+          </div>
+
+          {/* Item select */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">
+              Item <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={form.itemId}
+              onChange={e => setForm(f => ({ ...f, itemId: e.target.value, quantity: '' }))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900
+                         focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              <option value="">
+                {selectedSourceLocation ? '-- Select item from this location --' : '-- Select item with stock --'}
+              </option>
+              {selectedSourceLocation
+                ? itemsInSourceLocation.map(entry => (
+                    <option key={entry.itemId} value={entry.itemId}>
+                      {entry.item?.name ?? `Item #${entry.itemId}`} (available: {entry.quantity})
+                    </option>
+                  ))
+                : selectableItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+            </select>
+            {errors.itemId && <p className="text-xs text-red-500">{errors.itemId}</p>}
           </div>
 
           {/* To Location */}
@@ -165,7 +206,7 @@ export function TransferPage() {
                          focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
             >
               <option value="">-- Select destination location --</option>
-              {locations?.map(loc => (
+              {locations?.filter(loc => loc.id !== Number(form.fromLocationId)).map(loc => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name}{loc.capacity ? ` (cap: ${loc.capacity})` : ''}
                 </option>
@@ -179,11 +220,33 @@ export function TransferPage() {
             label="Quantity *"
             type="number"
             min={1}
+            max={availableAtSource || undefined}
             placeholder="0"
             value={form.quantity}
             onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
             error={errors.quantity}
           />
+
+          {selectedSourceLocation && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm">
+              <p className="font-medium text-gray-800">Location Stock</p>
+              {itemsInSourceLocation.length === 0 ? (
+                <p className="mt-2 text-xs text-gray-500">This location has no transferable stock.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {itemsInSourceLocation.map(entry => (
+                    <div key={entry.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs">
+                      <div>
+                        <p className="font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
+                        <p className="text-gray-400">{entry.item?.sku ?? '-'}</p>
+                      </div>
+                      <span className="font-mono font-semibold text-gray-700">x{entry.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Preview */}
           {selectedItem && fromLocation && toLocation && form.quantity && Number(form.quantity) > 0 && (
@@ -194,6 +257,7 @@ export function TransferPage() {
                 <p>From: <strong>{fromLocation.name}</strong></p>
                 <p>To: <strong>{toLocation.name}</strong></p>
                 <p>Quantity: <strong>{form.quantity} units</strong></p>
+                <p>Available at source: <strong>{availableAtSource} units</strong></p>
               </div>
             </div>
           )}

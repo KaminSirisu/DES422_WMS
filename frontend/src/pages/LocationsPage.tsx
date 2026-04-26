@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, MapPin, Pencil } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { Card, EmptyState, PageHeader } from '../components/ui/index'
 import { Spinner } from '../components/ui/index'
+import { useAuth } from '../context/AuthContext'
 
 const emptyForm: CreateLocationPayload = {
   name: '',
@@ -20,6 +21,7 @@ const emptyForm: CreateLocationPayload = {
 }
 
 export function LocationsPage() {
+  const { isAdmin } = useAuth()
   const { data: locations, isLoading, refetch } = useApi(() => adminService.getLocations())
 
   const [showModal, setShowModal] = useState(false)
@@ -101,9 +103,11 @@ export function LocationsPage() {
         title="Locations"
         subtitle={`${locations?.length ?? 0} warehouse locations`}
         action={
-          <Button onClick={openCreate} leftIcon={<Plus />}>
-            Add Location
-          </Button>
+          isAdmin ? (
+            <Button onClick={openCreate} leftIcon={<Plus />}>
+              Add Location
+            </Button>
+          ) : undefined
         }
       />
 
@@ -123,22 +127,61 @@ export function LocationsPage() {
                     <p className="text-xs text-gray-400 font-mono">ID #{loc.id}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => openEdit(loc)}
-                    className="rounded-lg p-1.5 text-gray-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(loc)}
-                    className="rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openEdit(loc)}
+                      className="rounded-lg p-1.5 text-gray-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(loc)}
+                      className="rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/70 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Location Stock</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{loc.currentStock ?? 0}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {loc.capacity ? `Capacity ${loc.capacity}` : 'Unlimited capacity'}
+                    </p>
+                  </div>
+                  {loc.isAlmostFull ? (
+                    <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      Almost full
+                    </div>
+                  ) : (
+                    <div className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                      Normal
+                    </div>
+                  )}
                 </div>
+
+                {loc.capacity ? (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Used</span>
+                      <span>{loc.utilizationPercent ?? 0}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-200">
+                      <div
+                        className={`h-2 rounded-full ${(loc.utilizationPercent ?? 0) >= 80 ? 'bg-amber-500' : 'bg-brand-500'}`}
+                        style={{ width: `${loc.utilizationPercent ?? 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-4 space-y-2 text-xs text-gray-500">
@@ -148,68 +191,96 @@ export function LocationsPage() {
                 <p>Capacity: <span className="font-medium text-gray-700">{loc.capacity ?? 'Unlimited'}</span></p>
                 <p>Created {new Date(loc.createdAt).toLocaleDateString()}</p>
               </div>
+
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <Package className="h-3.5 w-3.5 text-gray-400" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Items In Location</p>
+                </div>
+
+                {!loc.items || loc.items.length === 0 ? (
+                  <p className="text-xs text-gray-400">No stock stored in this location</p>
+                ) : (
+                  <div className="space-y-2">
+                    {loc.items.slice(0, 5).map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
+                          <p className="truncate text-gray-400">{entry.item?.sku ?? '-'}</p>
+                        </div>
+                        <span className="font-mono font-semibold text-gray-700">x{entry.quantity}</span>
+                      </div>
+                    ))}
+                    {loc.items.length > 5 && (
+                      <p className="text-[11px] text-gray-400">+{loc.items.length - 5} more item(s)</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </Card>
           ))}
         </div>
       )}
 
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editLocation ? 'Edit Location' : 'Add New Location'}
-        size="sm"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Custom Name (optional)"
-            placeholder="e.g. A-01-BIN-4"
-            value={form.name ?? ''}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          />
-          <div className="grid grid-cols-3 gap-3">
+      {isAdmin && (
+        <Modal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          title={editLocation ? 'Edit Location' : 'Add New Location'}
+          size="sm"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Zone"
-              placeholder="A"
-              value={form.zone ?? ''}
-              onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
-              error={errors.zone}
+              label="Custom Name (optional)"
+              placeholder="e.g. A-01-BIN-4"
+              value={form.name ?? ''}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             />
+            <div className="grid grid-cols-3 gap-3">
+              <Input
+                label="Zone"
+                placeholder="A"
+                value={form.zone ?? ''}
+                onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+                error={errors.zone}
+              />
+              <Input
+                label="Rack"
+                placeholder="01"
+                value={form.rack ?? ''}
+                onChange={e => setForm(f => ({ ...f, rack: e.target.value }))}
+                error={errors.rack}
+              />
+              <Input
+                label="Bin"
+                placeholder="B4"
+                value={form.bin ?? ''}
+                onChange={e => setForm(f => ({ ...f, bin: e.target.value }))}
+                error={errors.bin}
+              />
+            </div>
             <Input
-              label="Rack"
-              placeholder="01"
-              value={form.rack ?? ''}
-              onChange={e => setForm(f => ({ ...f, rack: e.target.value }))}
-              error={errors.rack}
+              label="Capacity (optional)"
+              type="number"
+              min={1}
+              placeholder="Leave blank for unlimited"
+              value={form.capacity ?? ''}
+              onChange={e => setForm(f => ({
+                ...f,
+                capacity: e.target.value ? Number(e.target.value) : undefined
+              }))}
             />
-            <Input
-              label="Bin"
-              placeholder="B4"
-              value={form.bin ?? ''}
-              onChange={e => setForm(f => ({ ...f, bin: e.target.value }))}
-              error={errors.bin}
-            />
-          </div>
-          <Input
-            label="Capacity (optional)"
-            type="number"
-            min={1}
-            placeholder="Leave blank for unlimited"
-            value={form.capacity ?? ''}
-            onChange={e => setForm(f => ({
-              ...f,
-              capacity: e.target.value ? Number(e.target.value) : undefined
-            }))}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={isSubmitting}>
-              {editLocation ? 'Save Changes' : 'Create Location'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" isLoading={isSubmitting}>
+                {editLocation ? 'Save Changes' : 'Create Location'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 // ============================================================
-// PICKING & SHIPPING PAGE (Warehouse Operations)
-// User picks items from orders and marks ready for shipment
+// PICKING, PACKING & COMPLETION PAGE
+// Staff picks items from orders, verifies them, packs them, and completes the order
 // ============================================================
 
 import { useState } from 'react'
@@ -24,8 +24,13 @@ export function PickingPage() {
   const handleStartPicking = async (orderId: number) => {
     setActionInProgress(orderId)
     try {
-      await orderService.updateStatus(orderId, 'PROCESSING')
-      toast.success('Picking started')
+      const updatedOrder = await orderService.updateStatus(orderId, 'PROCESSING')
+      if (updatedOrder.status === 'BACKLOG') {
+        const shortage = updatedOrder.shortage?.map((item) => `${item.itemName} (${item.remaining})`).join(', ')
+        toast.error(shortage ? `Still waiting for stock: ${shortage}` : 'Order is still in backlog because stock is not enough yet')
+      } else {
+        toast.success('Picking started')
+      }
       refetch()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
@@ -61,7 +66,7 @@ export function PickingPage() {
   return (
     <div>
       <PageHeader
-        title="Picking & Shipping"
+        title="Picking & Packing"
         subtitle={`${pendingCount} pending • ${processingCount} in progress`}
       />
 
@@ -138,7 +143,7 @@ export function PickingPage() {
                         <div>
                           <p className="text-sm font-medium text-gray-800">{line.item?.name}</p>
                           <p className="text-xs text-gray-500">
-                            Order: {line.quantity} • Fulfilled: {line.fulfilled}
+                            Order: {line.quantity} • Fulfilled: {line.fulfilled} • Available now: {line.availableStock ?? 0}
                           </p>
                         </div>
                       </div>
@@ -163,14 +168,19 @@ export function PickingPage() {
                     Start Picking
                   </Button>
                 ) : selectedOrder.status === 'PROCESSING' ? (
-                  <Button
-                    onClick={() => handleCompleteOrder(selectedOrder.id)}
-                    isLoading={actionInProgress === selectedOrder.id}
-                    className="flex-1"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Ready to Ship
-                  </Button>
+                  <div className="flex w-full flex-col gap-3">
+                    <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                      Inspect picked items, pack them, and then complete the order when it is ready to ship.
+                    </div>
+                    <Button
+                      onClick={() => handleCompleteOrder(selectedOrder.id)}
+                      isLoading={actionInProgress === selectedOrder.id}
+                      className="flex-1"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Complete Order
+                    </Button>
+                  </div>
                 ) : (
                   <div className="flex-1 flex items-center gap-2 justify-center p-2 bg-emerald-50 rounded-lg">
                     <CheckCircle className="h-4 w-4 text-emerald-600" />

@@ -62,7 +62,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const isAuthenticated = !!user;
   const isAdmin = user?.role === 'admin';
   const isStaff = user?.role === 'staff';
-  const canOperateWarehouse = isAdmin || isStaff;
+  const canOperateWarehouse = isStaff;
 
   useEffect(() => {
     const token = getStoredToken();

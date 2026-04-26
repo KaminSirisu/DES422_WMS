@@ -15,7 +15,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ onMenuToggle }: NavbarProps) {
-  const { user, isAdmin, logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showUserMenu, setShowUserMenu] = useState(false)
 

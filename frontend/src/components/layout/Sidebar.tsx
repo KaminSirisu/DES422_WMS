@@ -12,7 +12,9 @@ import {
   Users,
   ChevronLeft,
   Wrench,
-  BarChart3
+  BarChart3,
+  ClipboardCheck,
+  TriangleAlert
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import type { Role } from '../../types'
@@ -27,16 +29,18 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, section: 'OVERVIEW', roles: ['admin', 'staff', 'user'] },
-  { to: '/picking', label: 'Picking & Shipping', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
-  { to: '/inbound', label: 'Receiving', icon: <ArrowDownToLine className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
-  { to: '/transfer', label: 'Transfer', icon: <ArrowLeftRight className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
+  { to: '/picking', label: 'Picking & Shipping', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['staff'] },
+  { to: '/inbound', label: 'Receiving', icon: <ArrowDownToLine className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['staff'] },
+  { to: '/transfer', label: 'Transfer', icon: <ArrowLeftRight className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['staff'] },
+  { to: '/cycle-count', label: 'Cycle Count', icon: <ClipboardCheck className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['staff'] },
+  { to: '/report-issues', label: 'Report Issues', icon: <TriangleAlert className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['staff'] },
   { to: '/items', label: 'Inventory', icon: <PackageOpen className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin'] },
-  { to: '/orders', label: 'My Orders', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff', 'user'] },
+  { to: '/orders', label: 'My Orders', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'user'] },
   { to: '/inventory-monitor', label: 'Inventory Monitor', icon: <BarChart3 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
   { to: '/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
   { to: '/logs', label: 'Movement Logs', icon: <ScrollText className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
   { to: '/adjust-inventory', label: 'Adjust Inventory', icon: <Wrench className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
-  { to: '/locations', label: 'Locations', icon: <Building2 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/locations', label: 'Locations', icon: <Building2 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin', 'staff'] },
   { to: '/users', label: 'Users', icon: <Users className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
   { to: '/settings', label: 'System Rules', icon: <Settings className="h-4 w-4" />, section: 'SYSTEM', roles: ['admin'] }
 ]

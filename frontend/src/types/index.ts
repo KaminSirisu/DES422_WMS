@@ -44,6 +44,7 @@ export interface Item {
   category?: string | null
   minStock: number
   createdAt: string
+  totalStock?: number
   locations?: ItemLocation[]
 }
 
@@ -56,6 +57,10 @@ export interface Location {
   bin?: string | null
   capacity?: number
   createdAt: string
+  currentStock?: number
+  utilizationPercent?: number | null
+  isAlmostFull?: boolean
+  items?: ItemLocation[]
 }
 
 // ── ITEM LOCATION (stock per location) ────────────────────
@@ -80,6 +85,21 @@ export interface InboundResponse {
   stock: ItemLocation
 }
 
+export interface CycleCountPayload {
+  itemId: number
+  locationId: number
+  countedQuantity: number
+  note?: string
+}
+
+export interface IssueReportPayload {
+  itemId?: number
+  locationId?: number
+  issueType: string
+  quantity?: number
+  description?: string
+}
+
 // ── ORDER ─────────────────────────────────────────────────
 export interface OrderLine {
   id: number
@@ -87,6 +107,7 @@ export interface OrderLine {
   itemId: number
   quantity: number
   fulfilled: number
+  availableStock?: number
   item?: Item
 }
 
@@ -97,6 +118,11 @@ export interface Order {
   createdAt: string
   user?: User
   lines: OrderLine[]
+  shortage?: {
+    itemId: number
+    itemName: string
+    remaining: number
+  }[]
 }
 
 export interface CreateOrderPayload {
@@ -104,6 +130,21 @@ export interface CreateOrderPayload {
     itemId: number
     quantity: number
   }[]
+}
+
+export interface StaffDashboardSummary {
+  queue: {
+    pending: number
+    processing: number
+    backlog: number
+    total: number
+  }
+  todayActivity: {
+    inboundUnits: number
+    pickedUnits: number
+    transferUnits: number
+    movementCount: number
+  }
 }
 
 // ── LOG ───────────────────────────────────────────────────

@@ -16,6 +16,8 @@ import { UsersPage } from './pages/UsersPage';
 import { InventoryMonitorPage } from './pages/InventoryMonitorPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { CycleCountPage } from './pages/CycleCountPage';
+import { ReportIssuesPage } from './pages/ReportIssuesPage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { useAuth } from './context/AuthContext';
 import type { Role } from './types';
@@ -52,16 +54,18 @@ function App() {
         {/* Protected — ใน DashboardLayout */}
         <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/picking" element={<ProtectedRoute allowedRoles={['admin', 'staff']}><PickingPage /></ProtectedRoute>} />
-          <Route path="/inbound" element={<ProtectedRoute allowedRoles={['admin', 'staff']}><InboundPage /></ProtectedRoute>} />
-          <Route path="/transfer" element={<ProtectedRoute allowedRoles={['admin', 'staff']}><TransferPage /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute allowedRoles={['admin', 'user']}><OrdersPage /></ProtectedRoute>} />
+          <Route path="/picking" element={<ProtectedRoute allowedRoles={['staff']}><PickingPage /></ProtectedRoute>} />
+          <Route path="/inbound" element={<ProtectedRoute allowedRoles={['staff']}><InboundPage /></ProtectedRoute>} />
+          <Route path="/transfer" element={<ProtectedRoute allowedRoles={['staff']}><TransferPage /></ProtectedRoute>} />
+          <Route path="/cycle-count" element={<ProtectedRoute allowedRoles={['staff']}><CycleCountPage /></ProtectedRoute>} />
+          <Route path="/report-issues" element={<ProtectedRoute allowedRoles={['staff']}><ReportIssuesPage /></ProtectedRoute>} />
           <Route path="/adjust-inventory" element={<ProtectedRoute adminOnly><AdjustInventoryPage /></ProtectedRoute>} />
           <Route path="/items" element={<ProtectedRoute adminOnly><ItemsPage /></ProtectedRoute>} />
           <Route path="/logs" element={<ProtectedRoute adminOnly><LogsPage /></ProtectedRoute>} />
           <Route path="/inventory-monitor" element={<ProtectedRoute adminOnly><InventoryMonitorPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute adminOnly><ReportsPage /></ProtectedRoute>} />
-          <Route path="/locations" element={<ProtectedRoute adminOnly><LocationsPage /></ProtectedRoute>} />
+          <Route path="/locations" element={<ProtectedRoute allowedRoles={['admin', 'staff']}><LocationsPage /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute adminOnly><SettingsPage /></ProtectedRoute>} />
         </Route>

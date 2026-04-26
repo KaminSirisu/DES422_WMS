@@ -1,6 +1,4 @@
 const prisma = require("../utils/prisma");
-const bcrypt = require("bcrypt");
-
 const ALLOWED_ROLES = ["admin", "staff", "user"];
 const ORDER_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CANCELLED", "BACKLOG"];
 
@@ -163,8 +161,42 @@ exports.getItemLocations = async (req, res) => {
 // LOCATIONS
 exports.getAllLocations = async (req, res) => {
   try {
-    const locations = await prisma.location.findMany({ orderBy: { name: "asc" } });
-    res.json(locations);
+    const locations = await prisma.location.findMany({
+      include: {
+        items: {
+          include: {
+            item: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                category: true,
+                minStock: true,
+                createdAt: true
+              }
+            }
+          },
+          orderBy: { quantity: "desc" }
+        }
+      },
+      orderBy: { name: "asc" }
+    });
+
+    res.json(
+      locations.map((location) => {
+        const currentStock = location.items.reduce((sum, entry) => sum + entry.quantity, 0);
+        const utilizationPercent = location.capacity
+          ? Math.min(100, Math.round((currentStock / location.capacity) * 100))
+          : null;
+
+        return {
+          ...location,
+          currentStock,
+          utilizationPercent,
+          isAlmostFull: utilizationPercent !== null ? utilizationPercent >= 80 : false
+        };
+      })
+    );
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -262,39 +294,6 @@ exports.updateUserRole = async (req, res) => {
     });
     await createAuditLog(req, "USER_ROLE_UPDATE", "USER", id, { before, after: user });
     res.json(user);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
-
-exports.createUser = async (req, res) => {
-  const { username, email, password, role } = req.body;
-  try {
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: "Username, email and password are required" });
-    }
-    const normalizedRole = role || "user";
-    if (!ALLOWED_ROLES.includes(normalizedRole)) {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: {
-        username: String(username).trim(),
-        email: String(email).trim(),
-        password: hashedPassword,
-        role: normalizedRole
-      },
-      select: { id: true, username: true, email: true, role: true, createdAt: true }
-    });
-
-    await createAuditLog(req, "USER_CREATE", "USER", user.id, {
-      username: user.username,
-      email: user.email,
-      role: user.role
-    });
-    res.status(201).json(user);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
