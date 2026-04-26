@@ -12,6 +12,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: AuthUser | null;
   isAdmin: boolean;
+  isStaff: boolean;
+  canOperateWarehouse: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => void;
   // backward compat
@@ -58,6 +60,8 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   const isAuthenticated = !!user;
   const isAdmin = user?.role === 'admin';
+  const isStaff = user?.role === 'staff';
+  const canOperateWarehouse = isAdmin || isStaff;
 
   useEffect(() => {
     const token = getStoredToken();
@@ -85,7 +89,17 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, isAdmin, login, logout, loginUser, logoutUser: logout }}
+      value={{
+        isAuthenticated,
+        user,
+        isAdmin,
+        isStaff,
+        canOperateWarehouse,
+        login,
+        logout,
+        loginUser,
+        logoutUser: logout
+      }}
     >
       {children}
     </AuthContext.Provider>

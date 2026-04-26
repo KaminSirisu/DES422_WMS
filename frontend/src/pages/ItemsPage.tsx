@@ -16,6 +16,21 @@ import { Modal } from '../components/ui/Modal'
 import { Card, EmptyState, PageHeader } from '../components/ui/index'
 import { Spinner } from '../components/ui/index'
 
+const CATEGORY_OPTIONS = [
+  'GPU',
+  'CPU',
+  'RAM',
+  'SSD',
+  'HDD',
+  'MOTHERBOARD',
+  'PSU',
+  'CASE',
+  'COOLER',
+  'STORAGE',
+  'NETWORK',
+  'PERIPHERALS'
+]
+
 export function ItemsPage() {
   // ── Fetch all items ──────────────────────────────────────
   const { data: items, isLoading, refetch } = useApi(() => adminService.getItems())
@@ -26,20 +41,33 @@ export function ItemsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // ── Form state ────────────────────────────────────────
-  const [form, setForm] = useState<CreateItemPayload>({ name: '', minStock: 10 })
+  const [form, setForm] = useState<CreateItemPayload>({ sku: '', name: '', category: '', minStock: 10 })
   const [formErrors, setFormErrors] = useState({ name: '', minStock: '' })
+
+  const generateSku = () => {
+    const baseCategory = (form.category || 'SKU').toUpperCase()
+    const prefix = baseCategory === 'MOTHERBOARD' ? 'MB' : baseCategory
+    const random = Math.random().toString(36).slice(2, 6).toUpperCase()
+    const datePart = Date.now().toString().slice(-6)
+    setForm((prev) => ({ ...prev, sku: `${prefix}-${datePart}-${random}` }))
+  }
 
   // ── Open modal ────────────────────────────────────────
   const openCreate = () => {
     setEditItem(null)
-    setForm({ name: '', minStock: 10 })
+    setForm({ sku: '', name: '', category: '', minStock: 10 })
     setFormErrors({ name: '', minStock: '' })
     setShowModal(true)
   }
 
   const openEdit = (item: Item) => {
     setEditItem(item)
-    setForm({ name: item.name, minStock: item.minStock })
+    setForm({
+      sku: item.sku,
+      name: item.name,
+      category: item.category ?? '',
+      minStock: item.minStock
+    })
     setFormErrors({ name: '', minStock: '' })
     setShowModal(true)
   }
@@ -113,7 +141,9 @@ export function ItemsPage() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">ID</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">SKU</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Category</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Min Stock</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Created</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
@@ -123,6 +153,7 @@ export function ItemsPage() {
                 {items.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-gray-400">#{item.id}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-gray-500">{item.sku}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100">
@@ -130,6 +161,9 @@ export function ItemsPage() {
                         </div>
                         <span className="font-medium text-gray-800">{item.name}</span>
                       </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-500">
+                      {item.category || '-'}
                     </td>
                     <td className="px-5 py-3">
                       <span className="inline-flex items-center rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
@@ -173,14 +207,40 @@ export function ItemsPage() {
         size="sm"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-end gap-2">
+            <Input
+              label="SKU (optional)"
+              placeholder="Leave blank to auto-generate"
+              value={form.sku ?? ''}
+              onChange={(e) => setForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))}
+              autoFocus
+            />
+            {!editItem && (
+              <Button type="button" variant="secondary" onClick={generateSku}>
+                Generate
+              </Button>
+            )}
+          </div>
           <Input
             label="Item Name"
             placeholder="e.g. NVIDIA RTX 4090 24GB"
             value={form.name}
             onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
             error={formErrors.name}
-            autoFocus
           />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Category</label>
+            <select
+              value={form.category ?? ''}
+              onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              <option value="">Select category</option>
+              {CATEGORY_OPTIONS.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
           <Input
             label="Minimum Stock Alert"
             type="number"

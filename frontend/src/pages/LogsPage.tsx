@@ -129,7 +129,7 @@ export function LogsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {['ID', 'Action', 'Item', 'Location', 'Qty', 'User', 'Time'].map(h => (
+                  {['ID', 'Action', 'Item', 'Location', 'Qty', 'Reason', 'User', 'Time'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       {h}
                     </th>
@@ -149,6 +149,9 @@ export function LogsPage() {
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-gray-700">
                       {log.action === 'ADD' ? '+' : '-'}{log.quantity}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-500">
+                      {log.reason || '-'}
                     </td>
                     <td className="px-5 py-3 text-xs text-gray-500">
                       {log.user?.username ?? `#${log.userId}`}

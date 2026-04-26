@@ -1,10 +1,5 @@
-// ============================================================
-// LOCATIONS PAGE (Admin only)
-// CRUD: GET /admin/locations, POST, DELETE
-// ============================================================
-
 import { useState } from 'react'
-import { Plus, Trash2, MapPin } from 'lucide-react'
+import { Plus, Trash2, MapPin, Pencil } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -16,33 +11,72 @@ import { Modal } from '../components/ui/Modal'
 import { Card, EmptyState, PageHeader } from '../components/ui/index'
 import { Spinner } from '../components/ui/index'
 
+const emptyForm: CreateLocationPayload = {
+  name: '',
+  zone: '',
+  rack: '',
+  bin: '',
+  capacity: undefined
+}
+
 export function LocationsPage() {
   const { data: locations, isLoading, refetch } = useApi(() => adminService.getLocations())
 
   const [showModal, setShowModal] = useState(false)
+  const [editLocation, setEditLocation] = useState<Location | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [form, setForm] = useState<CreateLocationPayload>({ name: '', capacity: undefined })
-  const [errors, setErrors] = useState({ name: '' })
+  const [form, setForm] = useState<CreateLocationPayload>(emptyForm)
+  const [errors, setErrors] = useState({ zone: '', rack: '', bin: '' })
+
+  const openCreate = () => {
+    setEditLocation(null)
+    setForm(emptyForm)
+    setErrors({ zone: '', rack: '', bin: '' })
+    setShowModal(true)
+  }
+
+  const openEdit = (location: Location) => {
+    setEditLocation(location)
+    setForm({
+      name: location.name,
+      zone: location.zone ?? '',
+      rack: location.rack ?? '',
+      bin: location.bin ?? '',
+      capacity: location.capacity
+    })
+    setErrors({ zone: '', rack: '', bin: '' })
+    setShowModal(true)
+  }
 
   const validate = (): boolean => {
-    const errs = { name: '' }
-    if (!form.name.trim()) errs.name = 'Location name is required'
+    const errs = { zone: '', rack: '', bin: '' }
+    if (!form.name?.trim() && !form.zone?.trim() && !form.rack?.trim() && !form.bin?.trim()) {
+      errs.zone = 'Provide custom name or zone/rack/bin fields'
+    }
     setErrors(errs)
-    return !errs.name
+    return !errs.zone && !errs.rack && !errs.bin
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
+
     setIsSubmitting(true)
     try {
-      await adminService.createLocation(form)
-      toast.success('Location created')
+      if (editLocation) {
+        await adminService.updateLocation(editLocation.id, form)
+        toast.success('Location updated')
+      } else {
+        await adminService.createLocation(form)
+        toast.success('Location created')
+      }
       setShowModal(false)
-      setForm({ name: '', capacity: undefined })
+      setForm(emptyForm)
       refetch()
-    } catch {
-      toast.error('Failed to create location')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message || 'Failed to save location'
+      toast.error(msg)
     } finally {
       setIsSubmitting(false)
     }
@@ -55,7 +89,7 @@ export function LocationsPage() {
       toast.success('Location deleted')
       refetch()
     } catch {
-      toast.error('Failed to delete — location may have stock')
+      toast.error('Failed to delete - location may have stock')
     }
   }
 
@@ -67,13 +101,12 @@ export function LocationsPage() {
         title="Locations"
         subtitle={`${locations?.length ?? 0} warehouse locations`}
         action={
-          <Button onClick={() => setShowModal(true)} leftIcon={<Plus />}>
+          <Button onClick={openCreate} leftIcon={<Plus />}>
             Add Location
           </Button>
         }
       />
 
-      {/* Location grid */}
       {!locations || locations.length === 0 ? (
         <Card><EmptyState message="No locations found. Add your first location." /></Card>
       ) : (
@@ -90,54 +123,72 @@ export function LocationsPage() {
                     <p className="text-xs text-gray-400 font-mono">ID #{loc.id}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(loc)}
-                  className="rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openEdit(loc)}
+                    className="rounded-lg p-1.5 text-gray-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(loc)}
+                    className="rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
 
-              <div className="mt-4 space-y-2">
-                {loc.capacity != null ? (
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Capacity</span>
-                      <span className="font-medium">{loc.capacity} units</span>
-                    </div>
-                    {/* Capacity bar placeholder — real usage needs ItemLocation data */}
-                    <div className="h-1.5 w-full rounded-full bg-gray-100">
-                      <div className="h-1.5 rounded-full bg-brand-400" style={{ width: '40%' }} />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">No capacity limit</p>
-                )}
-                <p className="text-xs text-gray-400">
-                  Created {new Date(loc.createdAt).toLocaleDateString()}
-                </p>
+              <div className="mt-4 space-y-2 text-xs text-gray-500">
+                <p>Zone: <span className="font-medium text-gray-700">{loc.zone || '-'}</span></p>
+                <p>Rack: <span className="font-medium text-gray-700">{loc.rack || '-'}</span></p>
+                <p>Bin: <span className="font-medium text-gray-700">{loc.bin || '-'}</span></p>
+                <p>Capacity: <span className="font-medium text-gray-700">{loc.capacity ?? 'Unlimited'}</span></p>
+                <p>Created {new Date(loc.createdAt).toLocaleDateString()}</p>
               </div>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Create Modal */}
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title="Add New Location"
+        title={editLocation ? 'Edit Location' : 'Add New Location'}
         size="sm"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Location Name *"
-            placeholder="e.g. A-01, Zone-B-Shelf-3"
-            value={form.name}
+            label="Custom Name (optional)"
+            placeholder="e.g. A-01-BIN-4"
+            value={form.name ?? ''}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            error={errors.name}
-            autoFocus
           />
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="Zone"
+              placeholder="A"
+              value={form.zone ?? ''}
+              onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+              error={errors.zone}
+            />
+            <Input
+              label="Rack"
+              placeholder="01"
+              value={form.rack ?? ''}
+              onChange={e => setForm(f => ({ ...f, rack: e.target.value }))}
+              error={errors.rack}
+            />
+            <Input
+              label="Bin"
+              placeholder="B4"
+              value={form.bin ?? ''}
+              onChange={e => setForm(f => ({ ...f, bin: e.target.value }))}
+              error={errors.bin}
+            />
+          </div>
           <Input
             label="Capacity (optional)"
             type="number"
@@ -146,7 +197,7 @@ export function LocationsPage() {
             value={form.capacity ?? ''}
             onChange={e => setForm(f => ({
               ...f,
-              capacity: e.target.value ? Number(e.target.value) : undefined,
+              capacity: e.target.value ? Number(e.target.value) : undefined
             }))}
           />
           <div className="flex justify-end gap-3 pt-2">
@@ -154,7 +205,7 @@ export function LocationsPage() {
               Cancel
             </Button>
             <Button type="submit" isLoading={isSubmitting}>
-              Create Location
+              {editLocation ? 'Save Changes' : 'Create Location'}
             </Button>
           </div>
         </form>

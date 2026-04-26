@@ -1,12 +1,12 @@
 // ============================================================
 // ORDERS PAGE
-// - User: สร้าง order ใหม่
+// - User: สร้าง order ใหม่ + ดู order ของตัวเอง + ยกเลิกได้
 // - Admin: ดู orders ทั้งหมด
-// POST /orders, GET /admin/orders
+// POST /orders, GET /orders/me, PUT /orders/:id/cancel, GET /admin/orders
 // ============================================================
 
 import { useState } from 'react'
-import { Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { Plus, Trash2, ShoppingCart, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -28,18 +28,28 @@ interface OrderLineInput {
 export function OrdersPage() {
   const { isAdmin } = useAuth()
 
-  // ดึง orders (admin เท่านั้น)
+  // ดึง orders: admin ดูทั้งหมด, user ดูของตัวเอง
   const { data: orders, isLoading: ordersLoading, refetch } = useApi(
-    () => isAdmin ? adminService.getOrders() : Promise.resolve([])
+    () => isAdmin ? adminService.getOrders() : orderService.getMyOrders()
   )
   const { data: items, isLoading: itemsLoading } = useApi(() => adminService.getItems())
+  // ดึง stock ทุก location สำหรับแสดงใน form
+  const { data: allStocks, isLoading: stockLoading } = useApi(async () => {
+    const itemsList = await adminService.getItems()
+    const stocks: Record<number, number> = {}
+    for (const item of itemsList) {
+      const locs = await adminService.getItemLocations(item.id)
+      stocks[item.id] = locs.reduce((sum, l) => sum + l.quantity, 0)
+    }
+    return stocks
+  })
 
   const [showModal, setShowModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Dynamic order lines: เพิ่ม/ลบ items ใน order ได้
   const [lines, setLines] = useState<OrderLineInput[]>([{ itemId: '', quantity: '1' }])
 
-  const isLoading = ordersLoading || itemsLoading
+  const isLoading = ordersLoading || itemsLoading || stockLoading
 
   // ── Line management ───────────────────────────────────
   const addLine = () => setLines(l => [...l, { itemId: '', quantity: '1' }])
@@ -91,6 +101,24 @@ export function OrdersPage() {
   const getItemName = (items: Item[] | null, id: number) =>
     items?.find(i => i.id === id)?.name ?? `Item #${id}`
 
+  // ── Cancel order ─────────────────────────────────────
+  const handleCancel = async (orderId: number) => {
+    if (!confirm('Are you sure you want to cancel this order?')) return
+    
+    try {
+      await orderService.cancel(orderId)
+      toast.success('Order cancelled')
+      refetch()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message || 'Failed to cancel order'
+      toast.error(msg)
+    }
+  }
+
+  // Check if order can be cancelled (only PENDING or BACKLOG)
+  const canCancel = (status: string) => status === 'PENDING' || status === 'BACKLOG'
+
   if (isLoading) return <Spinner className="h-96" size="lg" />
 
   return (
@@ -118,6 +146,7 @@ export function OrdersPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Lines</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Items</th>
+                  {!isAdmin && <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -146,6 +175,20 @@ export function OrdersPage() {
                         )}
                       </div>
                     </td>
+                    {!isAdmin && (
+                      <td className="px-5 py-3">
+                        {canCancel(order.status) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancel(order.id)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -181,9 +224,14 @@ export function OrdersPage() {
                                focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                   >
                     <option value="">-- Select item --</option>
-                    {items?.map(item => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
+                    {items?.map(item => {
+                      const stock = allStocks?.[item.id] ?? 0
+                      return (
+                        <option key={item.id} value={item.id} disabled={stock === 0}>
+                          {item.name} {stock > 0 ? `(stock: ${stock})` : '(out of stock)'}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 

@@ -14,13 +14,13 @@ export function RegisterPage() {
   const navigate = useNavigate()
 
   const [username, setUsername] = useState('')
-  const [email, setEmail]       = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  const [showPassword, setShowPassword]               = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading]                     = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const [errors, setErrors] = useState({
     username: '', email: '', password: '', confirmPassword: '',
@@ -29,15 +29,15 @@ export function RegisterPage() {
   const validate = (): boolean => {
     const e = { username: '', email: '', password: '', confirmPassword: '' }
 
-    if (!username.trim())               e.username = 'Username is required'
-    if (!email.trim())                  e.email    = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email  = 'Invalid email format'
+    if (!username.trim()) e.username = 'Username is required'
+    if (!email.trim()) e.email = 'Email is required'
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Invalid email format'
 
-    if (!password)                      e.password = 'Password is required'
+    if (!password) e.password = 'Password is required'
     else if (!/^(?=.*[!@#$%^&*(),.?":{}|<>\-_]).{8,}$/.test(password))
-                                        e.password = 'Min 8 chars + special character'
+      e.password = 'Min 8 chars + special character'
 
-    if (password !== confirmPassword)   e.confirmPassword = 'Passwords do not match'
+    if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match'
 
     setErrors(e)
     return !e.username && !e.email && !e.password && !e.confirmPassword

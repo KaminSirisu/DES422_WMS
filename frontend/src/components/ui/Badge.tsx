@@ -60,7 +60,7 @@ export function getLogActionBadge(action: LogAction) {
 }
 
 export function getRoleBadge(role: Role) {
-  return role === 'admin'
-    ? <Badge variant="purple">Admin</Badge>
-    : <Badge variant="gray">User</Badge>
+  if (role === 'admin') return <Badge variant="purple">Admin</Badge>
+  if (role === 'staff') return <Badge variant="blue">Staff</Badge>
+  return <Badge variant="gray">User</Badge>
 }

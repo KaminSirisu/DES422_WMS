@@ -1,44 +1,44 @@
-// ============================================================
-// SIDEBAR COMPONENT
-// Dark sidebar พร้อม nav links, active state, admin-only items
-// ============================================================
-
 import { NavLink } from 'react-router'
 import { clsx } from 'clsx'
 import {
   LayoutDashboard,
   PackageOpen,
   ArrowDownToLine,
+  ArrowLeftRight,
   ShoppingCart,
   ScrollText,
   Settings,
   Building2,
   Users,
   ChevronLeft,
+  Wrench,
+  BarChart3
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import type { Role } from '../../types'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ReactNode
-  adminOnly?: boolean
-  section?: string
+  roles: Role[]
+  section: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  // OVERVIEW
-  { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, section: 'OVERVIEW' },
-  // WAREHOUSE OPERATIONS
-  { to: '/inbound',   label: 'Receiving',         icon: <ArrowDownToLine className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', adminOnly: true },
-  { to: '/items',     label: 'Inventory',          icon: <PackageOpen className="h-4 w-4" />,     section: 'WAREHOUSE OPERATIONS', adminOnly: true },
-  { to: '/orders',    label: 'Picking & Shipping', icon: <ShoppingCart className="h-4 w-4" />,    section: 'WAREHOUSE OPERATIONS' },
-  // MANAGEMENT
-  { to: '/logs',      label: 'Activity Logs',      icon: <ScrollText className="h-4 w-4" />,      section: 'MANAGEMENT', adminOnly: true },
-  { to: '/locations', label: 'Locations',          icon: <Building2 className="h-4 w-4" />,       section: 'MANAGEMENT', adminOnly: true },
-  { to: '/users',     label: 'Users',              icon: <Users className="h-4 w-4" />,           section: 'MANAGEMENT', adminOnly: true },
-  // SYSTEM
-  { to: '/settings',  label: 'Settings',           icon: <Settings className="h-4 w-4" />,        section: 'SYSTEM' },
+  { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, section: 'OVERVIEW', roles: ['admin', 'staff', 'user'] },
+  { to: '/picking', label: 'Picking & Shipping', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
+  { to: '/inbound', label: 'Receiving', icon: <ArrowDownToLine className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
+  { to: '/transfer', label: 'Transfer', icon: <ArrowLeftRight className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff'] },
+  { to: '/items', label: 'Inventory', icon: <PackageOpen className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin'] },
+  { to: '/orders', label: 'My Orders', icon: <ShoppingCart className="h-4 w-4" />, section: 'WAREHOUSE OPERATIONS', roles: ['admin', 'staff', 'user'] },
+  { to: '/inventory-monitor', label: 'Inventory Monitor', icon: <BarChart3 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/logs', label: 'Movement Logs', icon: <ScrollText className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/adjust-inventory', label: 'Adjust Inventory', icon: <Wrench className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/locations', label: 'Locations', icon: <Building2 className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/users', label: 'Users', icon: <Users className="h-4 w-4" />, section: 'MANAGEMENT', roles: ['admin'] },
+  { to: '/settings', label: 'System Rules', icon: <Settings className="h-4 w-4" />, section: 'SYSTEM', roles: ['admin'] }
 ]
 
 interface SidebarProps {
@@ -47,12 +47,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { isAdmin } = useAuth()
-
-  // กรอง nav items ตาม role
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin)
-
-  // จัดกลุ่มตาม section
+  const { user } = useAuth()
+  const visibleItems = NAV_ITEMS.filter(item => user && item.roles.includes(user.role))
   const sections = [...new Set(visibleItems.map(i => i.section))]
 
   return (
@@ -63,7 +59,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         collapsed ? 'w-16' : 'w-56'
       )}
     >
-      {/* Logo area */}
       <div className={clsx(
         'flex items-center border-b border-white/10 px-4 py-5',
         collapsed ? 'justify-center' : 'justify-between'
@@ -95,11 +90,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2">
         {sections.map((section) => (
           <div key={section} className="mb-4">
-            {/* Section header - ซ่อนเมื่อ collapsed */}
             {!collapsed && (
               <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
                 {section}
