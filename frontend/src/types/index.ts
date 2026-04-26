@@ -22,6 +22,7 @@ export interface AuthResponse {
 export interface TokenPayload {
   id: number
   role: Role
+  username?: string
   iat: number
   exp: number
 }

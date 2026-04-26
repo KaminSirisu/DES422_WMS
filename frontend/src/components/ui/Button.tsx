@@ -55,7 +55,7 @@ export function Button({
             {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
             ) : leftIcon ? (
-                <span className="h-4 w-4">{leftIcon}</span>
+                <span className="h-6 w-6">{leftIcon}</span>
             ) : null}
             {children}
         </button>

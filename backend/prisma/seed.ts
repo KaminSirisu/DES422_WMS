@@ -3,29 +3,36 @@ import { PrismaClient, Role, LogAction, OrderStatus } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 🔹 Users
-  const user1 = await prisma.user.create({
-    data: {
-      username: 'admin',
-      password: '1234',
-      role: Role.admin,
+  await prisma.systemSetting.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      defaultReorderPoint: 10,
+      lowStockBuffer: 0,
+      allocationStrategy: 'FIFO',
     },
+  });
+  // 🔹 Users
+  const user1 = await prisma.user.findUnique({
+    where: { id: 2 },
   });
 
-  const user2 = await prisma.user.create({
-    data: {
-      username: 'user1',
-      password: '1234',
-    },
+  const user2 = await prisma.user.findUnique({
+    where: { id: 3 },
   });
+
+  if (!user1 || !user2) {
+    throw new Error('User not found');
+  }
 
   // 🔹 Items
   const item1 = await prisma.item.create({
-    data: { name: 'Macbook Air M5' },
+    data: { sku: 'MB-AIR-M5', name: 'Macbook Air M5', category: 'Laptop' },
   });
 
   const item2 = await prisma.item.create({
-    data: { name: 'Logitech G Pro X' },
+    data: { sku: 'LOGI-GPROX', name: 'Logitech G Pro X', category: 'Accessories' },
   });
 
   // 🔹 Locations

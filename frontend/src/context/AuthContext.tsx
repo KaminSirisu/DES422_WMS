@@ -6,6 +6,7 @@ import type { LoginPayload, TokenPayload, Role } from '../types';
 interface AuthUser {
   id: number;
   role: Role;
+  username: string;
 }
 
 interface AuthContextType {
@@ -27,7 +28,7 @@ function decodeUser(token: string): AuthUser | null {
   try {
     const payload: TokenPayload = authService.decodeToken(token);
     if (!payload?.id) return null;
-    return { id: payload.id, role: payload.role };
+    return { id: payload.id, role: payload.role, username: payload.username ?? '' };
   } catch {
     return null;
   }
@@ -65,7 +66,22 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const token = getStoredToken();
-    if (token) setAuthToken(token);
+    if (!token) return;
+
+    setAuthToken(token);
+
+    authService
+      .getCurrentUser()
+      .then((currentUser) => {
+        setUser({
+          id: currentUser.id,
+          role: currentUser.role,
+          username: currentUser.username,
+        });
+      })
+      .catch(() => {
+        // Keep decoded token data as a fallback if the profile request fails.
+      });
   }, []);
 
   const login = async (payload: LoginPayload) => {

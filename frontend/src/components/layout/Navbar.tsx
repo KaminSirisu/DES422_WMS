@@ -67,11 +67,14 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500 text-white">
               <User className="h-4 w-4" />
             </div>
-            <div className="hidden sm:block text-left">
+            <div className="sm:block text-left">
               <p className="text-xs font-medium text-gray-800 leading-none">
-                {isAdmin ? 'Admin User' : 'User'}
+                {user?.username ?? 'User'}
               </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">ID #{user?.id}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                ID #{user?.id}
+              </p>
+
             </div>
           </button>
 

@@ -13,6 +13,7 @@ datasource db {
 
 enum Role {
   user
+  staff
   admin
 }
 
@@ -31,6 +32,11 @@ enum LogAction {
   TRANSFER_IN
 }
 
+enum AllocationStrategy {
+  FIFO
+  LIFO
+}
+
 //
 // USER
 //
@@ -46,6 +52,7 @@ model User {
   logs      Log[]
   orders    Order[]
   transfers Transfer[]
+  auditLogs AuditLog[]
 }
 
 //
@@ -54,7 +61,9 @@ model User {
 
 model Item {
   id        Int      @id @default(autoincrement())
+  sku       String   @unique
   name      String
+  category  String?
   minStock  Int      @default(10) // 👈 NEW (low stock detection)
   createdAt DateTime @default(now())
 
@@ -71,6 +80,9 @@ model Item {
 model Location {
   id        Int      @id @default(autoincrement())
   name      String
+  zone      String?
+  rack      String?
+  bin       String?
   capacity  Int?     // used for "almost full"
   createdAt DateTime @default(now())
 
@@ -126,6 +138,7 @@ model Log {
   locationId Int
   quantity   Int
   action     LogAction
+  reason     String?
   createdAt  DateTime  @default(now())
 
   user     User     @relation(fields: [userId], references: [id])
@@ -160,4 +173,24 @@ model OrderLine {
 
   order Order @relation(fields: [orderId], references: [id])
   item  Item  @relation(fields: [itemId], references: [id])
+}
+
+model SystemSetting {
+  id                  Int                @id @default(1)
+  defaultReorderPoint Int                @default(10)
+  lowStockBuffer      Int                @default(0)
+  allocationStrategy  AllocationStrategy @default(FIFO)
+  updatedAt           DateTime           @updatedAt
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
 }

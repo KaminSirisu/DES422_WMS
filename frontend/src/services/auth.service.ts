@@ -4,12 +4,17 @@
 // ============================================================
 
 import api from './api'
-import type { LoginPayload, AuthResponse } from '../types'
+import type { LoginPayload, AuthResponse, User } from '../types'
 
 export const authService = {
   // POST /auth/login
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
     const { data } = await api.post<AuthResponse>('/auth/login', payload)
+    return data
+  },
+
+  getCurrentUser: async (): Promise<User> => {
+    const { data } = await api.get<User>('/auth/me')
     return data
   },
 

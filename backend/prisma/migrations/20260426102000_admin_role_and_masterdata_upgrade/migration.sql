@@ -1,0 +1,17 @@
+ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'staff';
+
+ALTER TABLE "Item" ADD COLUMN "sku" TEXT;
+ALTER TABLE "Item" ADD COLUMN "category" TEXT;
+
+UPDATE "Item"
+SET "sku" = 'SKU-' || "id"
+WHERE "sku" IS NULL;
+
+ALTER TABLE "Item" ALTER COLUMN "sku" SET NOT NULL;
+CREATE UNIQUE INDEX "Item_sku_key" ON "Item"("sku");
+
+ALTER TABLE "Location" ADD COLUMN "zone" TEXT;
+ALTER TABLE "Location" ADD COLUMN "rack" TEXT;
+ALTER TABLE "Location" ADD COLUMN "bin" TEXT;
+
+ALTER TABLE "Log" ADD COLUMN "reason" TEXT;
