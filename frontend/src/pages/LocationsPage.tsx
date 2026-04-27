@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -27,6 +27,8 @@ export function LocationsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editLocation, setEditLocation] = useState<Location | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [expandedLocations, setExpandedLocations] = useState<Set<number>>(new Set())
+  const [searchFilters, setSearchFilters] = useState<Record<number, string>>({})
   const [form, setForm] = useState<CreateLocationPayload>(emptyForm)
   const [errors, setErrors] = useState({ zone: '', rack: '', bin: '' })
 
@@ -93,6 +95,27 @@ export function LocationsPage() {
     } catch {
       toast.error('Failed to delete - location may have stock')
     }
+  }
+
+  const toggleExpand = (locationId: number) => {
+    const newExpanded = new Set(expandedLocations)
+    if (newExpanded.has(locationId)) {
+      newExpanded.delete(locationId)
+    } else {
+      newExpanded.add(locationId)
+    }
+    setExpandedLocations(newExpanded)
+  }
+
+  const getFilteredItems = (locationId: number, items: any[]) => {
+    const searchQuery = (searchFilters[locationId] || '').toLowerCase()
+    if (!searchQuery) return items
+
+    return items.filter(entry => {
+      const itemName = (entry.item?.name || '').toLowerCase()
+      const itemSku = (entry.item?.sku || '').toLowerCase()
+      return itemName.includes(searchQuery) || itemSku.includes(searchQuery)
+    })
   }
 
   if (isLoading) return <Spinner className="h-96" size="lg" />
@@ -201,20 +224,38 @@ export function LocationsPage() {
                 {!loc.items || loc.items.length === 0 ? (
                   <p className="text-xs text-gray-400">No stock stored in this location</p>
                 ) : (
-                  <div className="space-y-2">
-                    {loc.items.slice(0, 5).map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
-                          <p className="truncate text-gray-400">{entry.item?.sku ?? '-'}</p>
+                  <>
+                    <div className="space-y-2">
+                      {(expandedLocations.has(loc.id) ? loc.items : loc.items.slice(0, 5)).map((entry) => (
+                        <div key={entry.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
+                            <p className="truncate text-gray-400">{entry.item?.sku ?? '-'}</p>
+                          </div>
+                          <span className="font-mono font-semibold text-gray-700">x{entry.quantity}</span>
                         </div>
-                        <span className="font-mono font-semibold text-gray-700">x{entry.quantity}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
                     {loc.items.length > 5 && (
-                      <p className="text-[11px] text-gray-400">+{loc.items.length - 5} more item(s)</p>
+                      <button
+                        onClick={() => toggleExpand(loc.id)}
+                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors"
+                      >
+                        {expandedLocations.has(loc.id) ? (
+                          <>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                            Show less ({loc.items.length - 5} hidden)
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            Show all ({loc.items.length} items)
+                          </>
+                        )}
+                      </button>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             </Card>

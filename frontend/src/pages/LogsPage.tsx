@@ -4,13 +4,14 @@
 // ============================================================
 
 import { useState } from 'react'
-import { Filter, RefreshCw } from 'lucide-react'
+import { Filter, RefreshCw, Search } from 'lucide-react'
 import { logService } from '../services/log.service'
 import type { LogFilters } from '../services/log.service'
 import { useApi } from '../hooks/useApi'
 import { Card, EmptyState, PageHeader } from '../components/ui/index'
 import { Spinner } from '../components/ui/index'
 import { Button } from '../components/ui/Button'
+import { Input } from '../components/ui/Input'
 import { getLogActionBadge } from '../components/ui/Badge'
 import type { LogAction } from '../types'
 
@@ -29,8 +30,16 @@ export function LogsPage() {
   const [actionInput, setActionInput]     = useState<LogAction | ''>('')
   const [startDateInput, setStartDateInput] = useState('')
   const [endDateInput, setEndDateInput]   = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { data: logs, isLoading, refetch } = useApi(() => logService.getAll(filters), [filters])
+
+  // Filter by search query (item name, location, username)
+  const filteredLogs = logs?.filter((log) =>
+    (log.item?.name ?? `#${log.itemId}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (log.location?.name ?? `#${log.locationId}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (log.user?.username ?? `#${log.userId}`).toLowerCase().includes(searchQuery.toLowerCase())
+  ) ?? []
 
   // Apply filters
   const applyFilters = () => {
@@ -64,6 +73,23 @@ export function LogsPage() {
           </Button>
         }
       />
+
+      {/* Search bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search by item, location, or user..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="mt-2 text-xs text-gray-400">
+          {filteredLogs.length} of {logs?.length ?? 0} records
+        </p>
+      </div>
 
       {/* Filter bar */}
       <Card className="mb-5 p-4">
@@ -122,8 +148,8 @@ export function LogsPage() {
       <Card>
         {isLoading ? (
           <Spinner className="h-64" />
-        ) : !logs || logs.length === 0 ? (
-          <EmptyState message="No logs found for the selected filters" />
+        ) : !filteredLogs || filteredLogs.length === 0 ? (
+          <EmptyState message={searchQuery ? "No logs match your search" : "No logs found for the selected filters"} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -137,7 +163,7 @@ export function LogsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-gray-400">#{log.id}</td>
                     <td className="px-5 py-3">{getLogActionBadge(log.action)}</td>

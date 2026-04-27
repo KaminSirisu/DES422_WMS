@@ -4,7 +4,7 @@
 // ============================================================
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Package } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -35,6 +35,9 @@ export function ItemsPage() {
   // ── Fetch all items ──────────────────────────────────────
   const { data: items, isLoading, refetch } = useApi(() => adminService.getItems())
 
+  // ── Search state ──────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+
   // ── Modal state ───────────────────────────────────────
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState<Item | null>(null)  // null = create mode
@@ -43,6 +46,12 @@ export function ItemsPage() {
   // ── Form state ────────────────────────────────────────
   const [form, setForm] = useState<CreateItemPayload>({ sku: '', name: '', category: '', minStock: 10 })
   const [formErrors, setFormErrors] = useState({ name: '', minStock: '' })
+
+  // ── Filter items by search query ───────────────────────
+  const filteredItems = items?.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  ) ?? []
 
   const generateSku = () => {
     const baseCategory = (form.category || 'SKU').toUpperCase()
@@ -132,14 +141,32 @@ export function ItemsPage() {
         }
       />
 
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search by name or SKU..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="mt-2 text-xs text-gray-400">
+          {filteredItems.length} of {items?.length ?? 0} items
+        </p>
+      </div>
+
       <Card>
-        {!items || items.length === 0 ? (
-          <EmptyState message="No items found. Create your first item." />
+        {filteredItems.length === 0 ? (
+          <EmptyState 
+            message={searchQuery ? "No items match your search" : "No items found. Create your first item."} 
+          />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[60vh] overflow-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
+                <tr className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50/95 backdrop-blur">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">ID</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">SKU</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
@@ -150,7 +177,7 @@ export function ItemsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {items.map((item) => (
+                {filteredItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-5 py-3 font-mono text-xs text-gray-400">#{item.id}</td>
                     <td className="px-5 py-3 font-mono text-xs text-gray-500">{item.sku}</td>

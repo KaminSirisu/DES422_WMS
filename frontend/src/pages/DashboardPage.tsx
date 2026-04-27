@@ -8,7 +8,8 @@ import {
   Clock,
   Package,
   ShoppingCart,
-  Truck
+  Truck,
+  Search
 } from 'lucide-react'
 import { Card, EmptyState, PageHeader, Spinner, StatCard } from '../components/ui/index'
 import { getLogActionBadge, getOrderStatusBadge } from '../components/ui/Badge'
@@ -29,6 +30,7 @@ export function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [lowStockSearch, setLowStockSearch] = useState('')
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -68,6 +70,10 @@ export function DashboardPage() {
   const processingOrders = orders.filter((order) => order.status === 'PROCESSING')
   const backlogOrders = orders.filter((order) => order.status === 'BACKLOG')
   const completedOrders = orders.filter((order) => order.status === 'COMPLETED')
+
+  const filteredLowStockItems = lowStockItems.filter(item =>
+    item.name.toLowerCase().includes(lowStockSearch.toLowerCase())
+  )
 
   if (isLoading) return <Spinner className="h-96" size="lg" />
 
@@ -109,90 +115,122 @@ export function DashboardPage() {
         {lowStockItems.length > 0 && (
           <div className="mb-6">
             <Card className="border-l-4 border-l-red-500 bg-red-50/30">
-              <div className="flex items-center justify-between border-b border-red-200 px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  <h2 className="text-sm font-semibold text-red-900">Low Stock Alert</h2>
+              <div className="border-b border-red-200 px-5 py-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <h2 className="text-sm font-semibold text-red-900">Low Stock Alert</h2>
+                  </div>
+                  <span className="text-xs font-medium text-red-600">{lowStockItems.length} item(s)</span>
                 </div>
-                <span className="text-xs font-medium text-red-600">{lowStockItems.length} item(s)</span>
+
+                {/* Search Box */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search low stock items..."
+                    value={lowStockSearch}
+                    onChange={(e) => setLowStockSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-red-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                  />
+                </div>
               </div>
 
-              <div className="divide-y divide-red-100">
-                {lowStockItems.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex cursor-pointer items-center justify-between px-5 py-3 transition-colors hover:bg-red-50/50"
-                    onClick={() => navigate(isStaff ? '/picking' : '/inbound')}
-                  >
-                    <div className="flex flex-1 items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
-                        <Package className="h-3.5 w-3.5 text-red-600" />
+              {/* Results */}
+              {filteredLowStockItems.length === 0 ? (
+                <div className="px-5 py-6 text-center">
+                  {lowStockSearch ? (
+                    <p className="text-xs text-gray-400">No items match "<strong>{lowStockSearch}</strong>"</p>
+                  ) : (
+                    <p className="text-xs text-gray-400">Enter search term above to filter items</p>
+                  )}
+                </div>
+              ) : (
+                <div className="divide-y divide-red-100 max-h-64 overflow-y-auto">
+                  {filteredLowStockItems.slice(0, 20).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex cursor-pointer items-center justify-between px-5 py-3 transition-colors hover:bg-red-50/50"
+                      onClick={() => navigate(isStaff ? '/picking' : '/inbound')}
+                    >
+                      <div className="flex flex-1 items-center gap-3 min-w-0">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
+                          <Package className="h-3.5 w-3.5 text-red-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
+                          <p className="text-[11px] font-semibold text-red-600">
+                            {item.totalStock} / {item.minStock}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-medium text-gray-800">{item.name}</p>
-                        <p className="text-[11px] font-semibold text-red-600">
-                          Stock: {item.totalStock} / Min: {item.minStock}
-                        </p>
+                      <div className="w-12 flex-shrink-0 rounded-full bg-gray-100">
+                        <div
+                          className="h-1.5 rounded-full bg-red-500"
+                          style={{ width: `${Math.min(100, (item.totalStock / Math.max(item.minStock, 1)) * 100)}%` }}
+                        />
                       </div>
                     </div>
-                    <div className="w-16 rounded-full bg-gray-100">
-                      <div
-                        className="h-1.5 rounded-full bg-red-500"
-                        style={{ width: `${Math.min(100, (item.totalStock / Math.max(item.minStock, 1)) * 100)}%` }}
-                      />
+                  ))}
+                  {filteredLowStockItems.length > 20 && (
+                    <div className="px-5 py-2 text-center text-[11px] text-gray-400">
+                      +{filteredLowStockItems.length - 20} more items
                     </div>
-                  </div>
-                ))}
-              </div>
+                  )}
+                </div>
+              )}
             </Card>
           </div>
         )}
 
         <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Inbound */}
           <Card>
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-brand-600" />
                 <h2 className="text-sm font-semibold text-gray-800">Inbound</h2>
               </div>
-              <span className="text-xs text-gray-400">{inboundLogs.length} movement(s) today</span>
+              <span className="text-xs text-gray-400">{inboundLogs.length} today</span>
             </div>
             {inboundLogs.length === 0 ? (
               <EmptyState message="No inbound today" />
             ) : (
-              <div className="divide-y divide-gray-50">
-                {inboundLogs.slice(0, 6).map((log) => (
-                  <div key={log.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-xs font-medium text-gray-800">{log.item?.name ?? `Item #${log.itemId}`}</p>
-                      <p className="text-[11px] text-gray-400">{log.location?.name ?? `Loc #${log.locationId}`} · {log.user?.username}</p>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {inboundLogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between px-5 py-2 text-xs hover:bg-gray-50/50">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-800 truncate">{log.item?.name ?? `Item #${log.itemId}`}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{log.location?.name ?? `Loc #${log.locationId}`} · {log.user?.username}</p>
                     </div>
-                    <span className="text-xs font-mono font-semibold text-brand-600">+{log.quantity}</span>
+                    <span className="text-xs font-mono font-semibold text-brand-600 flex-shrink-0 ml-2">+{log.quantity}</span>
                   </div>
                 ))}
               </div>
             )}
           </Card>
 
+          {/* Outbound */}
           <Card>
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-blue-600" />
                 <h2 className="text-sm font-semibold text-gray-800">Outbound</h2>
               </div>
-              <span className="text-xs text-gray-400">{outboundLogs.length} movement(s) today</span>
+              <span className="text-xs text-gray-400">{outboundLogs.length} today</span>
             </div>
             {outboundLogs.length === 0 ? (
               <EmptyState message="No outbound today" />
             ) : (
-              <div className="divide-y divide-gray-50">
-                {outboundLogs.slice(0, 6).map((log) => (
-                  <div key={log.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-xs font-medium text-gray-800">{log.item?.name ?? `Item #${log.itemId}`}</p>
-                      <p className="text-[11px] text-gray-400">{log.location?.name ?? `Loc #${log.locationId}`} · {log.user?.username}</p>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {outboundLogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between px-5 py-2 text-xs hover:bg-gray-50/50">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-800 truncate">{log.item?.name ?? `Item #${log.itemId}`}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{log.location?.name ?? `Loc #${log.locationId}`} · {log.user?.username}</p>
                     </div>
-                    <span className="text-xs font-mono font-semibold text-blue-600">-{log.quantity}</span>
+                    <span className="text-xs font-mono font-semibold text-blue-600 flex-shrink-0 ml-2">-{log.quantity}</span>
                   </div>
                 ))}
               </div>
@@ -201,27 +239,27 @@ export function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Recent Activity */}
           <Card>
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-gray-400" />
                 <h2 className="text-sm font-semibold text-gray-800">Recent Activity</h2>
               </div>
-              <span className="text-xs text-gray-400">Today</span>
+              <span className="text-xs text-gray-400">{todayLogs.length} today</span>
             </div>
             {todayLogs.length === 0 ? (
               <EmptyState message="No activity today" />
             ) : (
-              <div className="divide-y divide-gray-50">
-                {todayLogs.slice(0, 8).map((log) => (
-                  <div key={log.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="text-xs font-medium text-gray-800">{log.item?.name ?? `Item #${log.itemId}`}</p>
-                      <p className="text-[11px] text-gray-400">{log.location?.name ?? `Loc #${log.locationId}`} · {log.user?.username}</p>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {todayLogs.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between px-5 py-2 text-xs hover:bg-gray-50/50">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-800 truncate">{log.item?.name ?? `Item #${log.itemId}`}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{log.location?.name} · {log.user?.username}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 ml-2">
                       {getLogActionBadge(log.action)}
-                      <span className="text-xs font-mono text-gray-500">×{log.quantity}</span>
                     </div>
                   </div>
                 ))}
@@ -229,26 +267,28 @@ export function DashboardPage() {
             )}
           </Card>
 
+          {/* Recent Orders */}
           <Card>
-            <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
-              <ShoppingCart className="h-4 w-4 text-gray-400" />
-              <h2 className="text-sm font-semibold text-gray-800">Recent Orders</h2>
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4 text-purple-600" />
+                <h2 className="text-sm font-semibold text-gray-800">Recent Orders</h2>
+              </div>
+              <span className="text-xs text-gray-400">{orders.length} total</span>
             </div>
             {orders.length === 0 ? (
-              <EmptyState message="No orders yet" />
+              <EmptyState message="No orders" />
             ) : (
-              <div className="divide-y divide-gray-50">
-                {orders.slice(0, 8).map((order) => (
-                  <div key={order.id} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <p className="font-mono text-xs font-semibold text-gray-800">
-                        ORD-{String(order.id).padStart(4, '0')}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">
-                        {order.lines?.length ?? 0} line(s) · {new Date(order.createdAt).toLocaleDateString()}
-                      </p>
+              <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                {orders.slice(0, 50).map((order) => (
+                  <div key={order.id} className="flex items-center justify-between px-5 py-2 text-xs hover:bg-gray-50/50">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono font-medium text-gray-800">ORD-{String(order.id).padStart(4, '0')}</p>
+                      <p className="text-[11px] text-gray-400">{order.user?.username ?? 'Unknown'} · {order.lines?.length ?? 0} item(s)</p>
                     </div>
-                    {getOrderStatusBadge(order.status)}
+                    <div className="flex-shrink-0 ml-2">
+                      {getOrderStatusBadge(order.status)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -305,18 +345,18 @@ export function DashboardPage() {
           {orders.length === 0 ? (
             <EmptyState message="You have not placed any orders yet" />
           ) : (
-            <div className="divide-y divide-gray-50">
-              {orders.slice(0, 8).map((order) => (
-                <div key={order.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="font-mono text-xs font-semibold text-gray-800">
-                      ORD-{String(order.id).padStart(4, '0')}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">
+            <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+              {orders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between px-5 py-2 text-xs hover:bg-gray-50/50">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono font-semibold text-gray-800">ORD-{String(order.id).padStart(4, '0')}</p>
+                    <p className="text-[11px] text-gray-400 truncate">
                       {order.lines?.length ?? 0} line(s) · {new Date(order.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  {getOrderStatusBadge(order.status)}
+                  <div className="flex-shrink-0 ml-2">
+                    {getOrderStatusBadge(order.status)}
+                  </div>
                 </div>
               ))}
             </div>
