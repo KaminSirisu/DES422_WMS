@@ -28,14 +28,14 @@ app.use("/staff", staffRoutes);
 
 const PORT = 3000;
 
-// Auto-cleanup: Remove ItemLocation records with quantity = 0 on startup
+// Auto-cleanup: Remove zero-quantity item-location stock rows on startup.
 async function cleanupZeroQuantityOnStartup() {
   try {
     const deleted = await prisma.itemLocation.deleteMany({
       where: { quantity: 0 }
     });
     if (deleted.count > 0) {
-      console.log(`🧹 Cleaned up ${deleted.count} orphaned zero-quantity inventory records`);
+      console.log(`🧹 Cleaned up ${deleted.count} zero-quantity item-location records`);
     }
   } catch (err) {
     console.error("Cleanup error:", err.message);

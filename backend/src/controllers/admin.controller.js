@@ -209,7 +209,6 @@ exports.getAllLocations = async (req, res) => {
             isFull
           };
         })
-        .filter(location => location.currentStock > 0) // Only show locations with stock
     );
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -852,7 +851,7 @@ exports.getDashboardStats = async (req, res) => {
   }
 };
 
-// MAINTENANCE: Clean up orphaned ItemLocation records with 0 quantity
+// MAINTENANCE: Clean up zero-quantity ItemLocation stock rows
 exports.cleanupZeroQuantityRecords = async (req, res) => {
   try {
     const deleted = await prisma.itemLocation.deleteMany({
