@@ -45,4 +45,7 @@ router.get("/audit-logs", authMiddleware, adminMiddleware, admin.getAuditLogs);
 router.get("/settings", authMiddleware, adminMiddleware, admin.getSystemSettings);
 router.put("/settings", authMiddleware, adminMiddleware, admin.updateSystemSettings);
 
+// ── MAINTENANCE (admin only) ──────────────────────────────
+router.post("/cleanup-zero-quantity", authMiddleware, adminMiddleware, admin.cleanupZeroQuantityRecords);
+
 module.exports = router;

@@ -29,6 +29,14 @@ function skuPrefixFromCategory(category) {
   return map[value] || "SKU";
 }
 
+// Helper: Get current stock in a location
+async function getLocationStock(tx, locationId) {
+  const items = await tx.itemLocation.findMany({
+    where: { locationId: Number(locationId) }
+  });
+  return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
 async function generateUniqueSku(tx, category) {
   const prefix = skuPrefixFromCategory(category);
   for (let i = 0; i < 8; i += 1) {
@@ -148,7 +156,7 @@ exports.getItemLocations = async (req, res) => {
   const { id } = req.params;
   try {
     const stocks = await prisma.itemLocation.findMany({
-      where: { itemId: Number(id) },
+      where: { itemId: Number(id), quantity: { gt: 0 } }, // Only include items with quantity > 0
       include: { location: true },
       orderBy: { quantity: "desc" }
     });
@@ -164,6 +172,7 @@ exports.getAllLocations = async (req, res) => {
     const locations = await prisma.location.findMany({
       include: {
         items: {
+          where: { quantity: { gt: 0 } }, // Only include items with quantity > 0
           include: {
             item: {
               select: {
@@ -183,19 +192,24 @@ exports.getAllLocations = async (req, res) => {
     });
 
     res.json(
-      locations.map((location) => {
-        const currentStock = location.items.reduce((sum, entry) => sum + entry.quantity, 0);
-        const utilizationPercent = location.capacity
-          ? Math.min(100, Math.round((currentStock / location.capacity) * 100))
-          : null;
+      locations
+        .map((location) => {
+          const currentStock = location.items.reduce((sum, entry) => sum + entry.quantity, 0);
+          const utilizationPercent = location.capacity
+            ? Math.min(100, Math.round((currentStock / location.capacity) * 100))
+            : null;
+          const isFull = utilizationPercent !== null ? utilizationPercent >= 100 : false;
+          const isAlmostFull = utilizationPercent !== null ? utilizationPercent >= 80 && utilizationPercent < 100 : false;
 
-        return {
-          ...location,
-          currentStock,
-          utilizationPercent,
-          isAlmostFull: utilizationPercent !== null ? utilizationPercent >= 80 : false
-        };
-      })
+          return {
+            ...location,
+            currentStock,
+            utilizationPercent,
+            isAlmostFull,
+            isFull
+          };
+        })
+        .filter(location => location.currentStock > 0) // Only show locations with stock
     );
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -422,15 +436,44 @@ exports.createTransfer = async (req, res) => {
         throw new Error("Not enough stock at source location");
       }
 
-      await tx.itemLocation.update({
-        where: {
-          itemId_locationId: {
-            itemId: Number(itemId),
-            locationId: Number(fromLocationId)
-          }
-        },
-        data: { quantity: { decrement: qty } }
+      // Check destination location capacity
+      const toLocation = await tx.location.findUnique({
+        where: { id: Number(toLocationId) }
       });
+      if (!toLocation) {
+        throw new Error("Destination location not found");
+      }
+
+      if (toLocation.capacity !== null) {
+        const currentStock = await getLocationStock(tx, Number(toLocationId));
+        const newStock = currentStock + qty;
+        if (newStock > toLocation.capacity) {
+          throw new Error(`Destination location capacity exceeded. Max: ${toLocation.capacity}, Current: ${currentStock}, Trying to add: ${qty}`);
+        }
+      }
+
+      const newSourceQuantity = sourceStock.quantity - qty;
+      if (newSourceQuantity === 0) {
+        // Delete record if quantity becomes 0
+        await tx.itemLocation.delete({
+          where: {
+            itemId_locationId: {
+              itemId: Number(itemId),
+              locationId: Number(fromLocationId)
+            }
+          }
+        });
+      } else {
+        await tx.itemLocation.update({
+          where: {
+            itemId_locationId: {
+              itemId: Number(itemId),
+              locationId: Number(fromLocationId)
+            }
+          },
+          data: { quantity: { decrement: qty } }
+        });
+      }
 
       await tx.itemLocation.upsert({
         where: {
@@ -513,7 +556,8 @@ exports.getInventoryOverview = async (req, res) => {
     ]);
 
     const inventory = items.map(item => {
-      const totalStock = item.locations.reduce((sum, loc) => sum + loc.quantity, 0);
+      const validLocations = item.locations.filter(loc => loc.quantity > 0); // Filter out 0-quantity items
+      const totalStock = validLocations.reduce((sum, loc) => sum + loc.quantity, 0);
       return {
         id: item.id,
         sku: item.sku,
@@ -521,8 +565,8 @@ exports.getInventoryOverview = async (req, res) => {
         category: item.category,
         minStock: item.minStock,
         totalStock,
-        locationCount: item.locations.length,
-        locations: item.locations
+        locationCount: validLocations.length,
+        locations: validLocations
       };
     });
 
@@ -738,7 +782,15 @@ exports.adjustInventory = async (req, res) => {
       return res.status(400).json({ message: "Insufficient stock" });
     }
 
-    if (stock) {
+    if (newQuantity === 0) {
+      // Delete record if quantity becomes 0
+      if (stock) {
+        await prisma.itemLocation.delete({
+          where: { id: stock.id }
+        });
+      }
+      stock = { itemId: Number(itemId), locationId: Number(locationId), quantity: 0 };
+    } else if (stock) {
       stock = await prisma.itemLocation.update({
         where: { id: stock.id },
         data: { quantity: newQuantity }
@@ -794,6 +846,26 @@ exports.getDashboardStats = async (req, res) => {
       totalLocations,
       totalOrders,
       pendingOrders: pendingOrders + backlogOrders
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// MAINTENANCE: Clean up orphaned ItemLocation records with 0 quantity
+exports.cleanupZeroQuantityRecords = async (req, res) => {
+  try {
+    const deleted = await prisma.itemLocation.deleteMany({
+      where: { quantity: 0 }
+    });
+
+    await createAuditLog(req, "CLEANUP_ZERO_QUANTITY", "ITEM_LOCATION", null, {
+      recordsDeleted: deleted.count
+    });
+
+    res.json({
+      message: "Cleanup completed",
+      recordsDeleted: deleted.count
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

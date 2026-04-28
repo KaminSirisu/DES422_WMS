@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -179,7 +179,12 @@ export function LocationsPage() {
                       {loc.capacity ? `Capacity ${loc.capacity}` : 'Unlimited capacity'}
                     </p>
                   </div>
-                  {loc.isAlmostFull ? (
+                  {loc.isFull ? (
+                    <div className="flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      Full
+                    </div>
+                  ) : loc.isAlmostFull ? (
                     <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-700">
                       <AlertTriangle className="h-3 w-3" />
                       Almost full
@@ -199,8 +204,8 @@ export function LocationsPage() {
                     </div>
                     <div className="h-2 rounded-full bg-gray-200">
                       <div
-                        className={`h-2 rounded-full ${(loc.utilizationPercent ?? 0) >= 80 ? 'bg-amber-500' : 'bg-brand-500'}`}
-                        style={{ width: `${loc.utilizationPercent ?? 0}%` }}
+                        className={`h-2 rounded-full ${(loc.utilizationPercent ?? 0) >= 100 ? 'bg-red-500' : (loc.utilizationPercent ?? 0) >= 80 ? 'bg-amber-500' : 'bg-brand-500'}`}
+                        style={{ width: `${Math.min(100, loc.utilizationPercent ?? 0)}%` }}
                       />
                     </div>
                   </div>
@@ -216,45 +221,58 @@ export function LocationsPage() {
               </div>
 
               <div className="mt-4 border-t border-gray-100 pt-4">
-                <div className="mb-2 flex items-center gap-2">
+                <div className="mb-3 flex items-center gap-2">
                   <Package className="h-3.5 w-3.5 text-gray-400" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Items In Location</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Items In Location ({loc.items?.length ?? 0})
+                  </p>
                 </div>
 
                 {!loc.items || loc.items.length === 0 ? (
                   <p className="text-xs text-gray-400">No stock stored in this location</p>
                 ) : (
                   <>
-                    <div className="space-y-2">
-                      {(expandedLocations.has(loc.id) ? loc.items : loc.items.slice(0, 5)).map((entry) => (
-                        <div key={entry.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
-                            <p className="truncate text-gray-400">{entry.item?.sku ?? '-'}</p>
-                          </div>
-                          <span className="font-mono font-semibold text-gray-700">x{entry.quantity}</span>
-                        </div>
-                      ))}
+                    {/* Search filter */}
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        placeholder="Search items..."
+                        value={searchFilters[loc.id] || ''}
+                        onChange={(e) => setSearchFilters({ ...searchFilters, [loc.id]: e.target.value })}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs
+                                   placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      />
                     </div>
 
-                    {loc.items.length > 5 && (
-                      <button
-                        onClick={() => toggleExpand(loc.id)}
-                        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors"
-                      >
-                        {expandedLocations.has(loc.id) ? (
-                          <>
-                            <ChevronUp className="h-3.5 w-3.5" />
-                            Show less ({loc.items.length - 5} hidden)
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-3.5 w-3.5" />
-                            Show all ({loc.items.length} items)
-                          </>
-                        )}
-                      </button>
-                    )}
+                    {/* Scrollable items container */}
+                    <div className="relative">
+                      <div className="max-h-56 overflow-y-auto space-y-2 pr-2">
+                        {(() => {
+                          const filteredItems = getFilteredItems(loc.id, loc.items)
+                          
+                          if (filteredItems.length === 0) {
+                            return <p className="text-xs text-gray-400 py-2">No items match your search</p>
+                          }
+
+                          return filteredItems.map((entry) => (
+                            <div key={entry.id} className="flex items-center justify-between rounded-lg bg-gradient-to-r from-gray-50 to-white px-3 py-2 text-xs border border-gray-100 shadow-xs hover:shadow-sm transition-shadow">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-medium text-gray-800">{entry.item?.name ?? `Item #${entry.itemId}`}</p>
+                                <p className="truncate text-xs text-gray-400">{entry.item?.sku ?? '-'}</p>
+                              </div>
+                              <div className="ml-2 flex-shrink-0 text-right">
+                                <span className="inline-block rounded-lg bg-brand-100 px-2 py-1 font-mono font-semibold text-brand-700">x{entry.quantity}</span>
+                              </div>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                      
+                      {/* Scrollbar indicator */}
+                      {(loc.items?.length ?? 0) > 8 && (
+                        <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-b from-gray-200 to-gray-100 rounded-full opacity-30"></div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

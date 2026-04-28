@@ -60,6 +60,7 @@ export interface Location {
   currentStock?: number
   utilizationPercent?: number | null
   isAlmostFull?: boolean
+  isFull?: boolean
   items?: ItemLocation[]
 }
 

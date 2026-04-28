@@ -24,6 +24,14 @@ async function canResumeOrder(tx, orderId) {
     });
 }
 
+// Helper: Get current stock in a location
+async function getLocationStock(tx, locationId) {
+  const items = await tx.itemLocation.findMany({
+    where: { locationId: Number(locationId) }
+  });
+  return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
 exports.addStock = async (req, res) => {
     const { itemId, locationId, quantity } = req.body;
     const userId = req.user.id;
@@ -34,6 +42,22 @@ exports.addStock = async (req, res) => {
 
     try {
         const result = await prisma.$transaction(async (tx) => {
+            // Check location capacity first
+            const location = await tx.location.findUnique({
+                where: { id: Number(locationId) }
+            });
+            if (!location) {
+                throw new Error("Location not found");
+            }
+
+            if (location.capacity !== null) {
+                const currentStock = await getLocationStock(tx, Number(locationId));
+                const newStock = currentStock + Number(quantity);
+                if (newStock > location.capacity) {
+                    throw new Error(`Location capacity exceeded. Max: ${location.capacity}, Current: ${currentStock}, Trying to add: ${quantity}`);
+                }
+            }
+
             // 1. Add stock
             const stock = await tx.itemLocation.upsert({
                 where: {
