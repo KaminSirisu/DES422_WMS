@@ -1,145 +1,116 @@
-import { PrismaClient, Role, LogAction, OrderStatus } from '@prisma/client';
+import { PrismaClient, LogAction, OrderStatus } from '@prisma/client'
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
+
+function randomStock() {
+  return Math.floor(Math.random() * 100) + 10
+}
 
 async function main() {
-  await prisma.systemSetting.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      id: 1,
-      defaultReorderPoint: 10,
-      lowStockBuffer: 0,
-      allocationStrategy: 'FIFO',
-    },
-  });
   // 🔹 Users
-  const user1 = await prisma.user.findUnique({
-    where: { id: 2 },
-  });
+  const users = await prisma.user.findMany({
+    where: { id: { in: [2, 3] } },
+  })
 
-  const user2 = await prisma.user.findUnique({
-    where: { id: 3 },
-  });
-
-  if (!user1 || !user2) {
-    throw new Error('User not found');
+  if (users.length < 2) {
+    throw new Error('Users not found')
   }
 
-  // 🔹 Items
-  const item1 = await prisma.item.create({
-    data: { sku: 'MB-AIR-M5', name: 'Macbook Air M5', category: 'Laptop' },
-  });
+  const user1 = users[0]
+  const user2 = users[1]
 
-  const item2 = await prisma.item.create({
-    data: { sku: 'LOGI-GPROX', name: 'Logitech G Pro X', category: 'Accessories' },
-  });
+  // 🔹 Items (createMany เร็วกว่า + skip duplicate)
+  await prisma.item.createMany({
+    data: [
+      { sku: 'MB-AIR-M5', name: 'Macbook Air M5', category: 'Laptop' },
+      { sku: 'LOGI-GPROX', name: 'Logitech G Pro X', category: 'Accessories' },
+      { sku: 'KEY-CHRON-K8', name: 'Keychron K8', category: 'Keyboard' },
+    ],
+    skipDuplicates: true,
+  })
+
+  const items = await prisma.item.findMany()
 
   // 🔹 Locations
-  const loc1 = await prisma.location.create({
-    data: { name: 'A1', capacity: 100 },
-  });
-
-  const loc2 = await prisma.location.create({
-    data: { name: 'B1', capacity: 200 },
-  });
-
-  // 🔹 Stock (ItemLocation)
-  await prisma.itemLocation.createMany({
+  await prisma.location.createMany({
     data: [
-      {
-        itemId: item1.id,
-        locationId: loc1.id,
-        quantity: 50,
-      },
-      {
-        itemId: item2.id,
-        locationId: loc1.id,
-        quantity: 30,
-      },
-      {
-        itemId: item1.id,
-        locationId: loc2.id,
-        quantity: 20,
-      },
+      { name: 'A1', capacity: 100 },
+      { name: 'B1', capacity: 200 },
+      { name: 'C1', capacity: 150 },
     ],
-  });
+    skipDuplicates: true,
+  })
 
-  // 🔹 Transfer
-  const transfer1 = await prisma.transfer.create({
+  const locations = await prisma.location.findMany()
+
+  // 🔹 Stock (ยัดทั้งหมดแบบ loop)
+  const stockData = []
+
+  for (const item of items) {
+    for (const loc of locations) {
+      stockData.push({
+        itemId: item.id,
+        locationId: loc.id,
+        quantity: randomStock(),
+      })
+    }
+  }
+
+  await prisma.itemLocation.createMany({
+    data: stockData,
+    skipDuplicates: true,
+  })
+
+  // 🔹 Transfer (สุ่ม)
+  await prisma.transfer.create({
     data: {
-      itemId: item1.id,
-      fromLocationId: loc1.id,
-      toLocationId: loc2.id,
+      itemId: items[0].id,
+      fromLocationId: locations[0].id,
+      toLocationId: locations[1].id,
       userId: user1.id,
-      quantity: 10,
+      quantity: 5,
     },
-  });
+  })
 
   // 🔹 Logs
   await prisma.log.createMany({
     data: [
       {
         userId: user1.id,
-        itemId: item1.id,
-        locationId: loc1.id,
-        quantity: 10,
+        itemId: items[0].id,
+        locationId: locations[0].id,
+        quantity: 5,
         action: LogAction.TRANSFER_OUT,
       },
       {
         userId: user1.id,
-        itemId: item1.id,
-        locationId: loc2.id,
-        quantity: 10,
+        itemId: items[0].id,
+        locationId: locations[1].id,
+        quantity: 5,
         action: LogAction.TRANSFER_IN,
       },
-      {
-        userId: user2.id,
-        itemId: item2.id,
-        locationId: loc1.id,
-        quantity: 5,
-        action: LogAction.WITHDRAW,
-      },
-      {
-        userId: user1.id,
-        itemId: item2.id,
-        locationId: loc1.id,
-        quantity: 20,
-        action: LogAction.ADD,
-      },
     ],
-  });
+  })
 
-  // 🔹 Order + OrderLine
-  const order1 = await prisma.order.create({
+  // 🔹 Order
+  await prisma.order.create({
     data: {
       userId: user2.id,
       status: OrderStatus.PENDING,
       lines: {
-        create: [
-          {
-            itemId: item1.id,
-            quantity: 2,
-          },
-          {
-            itemId: item2.id,
-            quantity: 3,
-          },
-        ],
+        create: items.slice(0, 2).map((item) => ({
+          itemId: item.id,
+          quantity: Math.floor(Math.random() * 5) + 1,
+        })),
       },
     },
-    include: {
-      lines: true,
-    },
-  });
+  })
 
-  console.log('✅ Seed data created');
+  console.log('✅ Seed data created (FULL SYSTEM)')
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-  })
+  .catch(console.error)
   .finally(async () => {
-    await prisma.$disconnect();
-  });
+    await prisma.$disconnect()
+  })
