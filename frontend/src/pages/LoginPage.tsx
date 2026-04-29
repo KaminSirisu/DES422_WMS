@@ -3,7 +3,7 @@
 // ============================================================
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import type { CredentialResponse } from '@react-oauth/google'
 import { Lock, User, Building2, Eye, EyeOff } from 'lucide-react'

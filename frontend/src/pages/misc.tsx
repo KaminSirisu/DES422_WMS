@@ -1,7 +1,7 @@
 // ============================================================
 // NOT FOUND PAGE (404)
 // ============================================================
-import { useNavigate } from 'react-router'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Home } from 'lucide-react'
 

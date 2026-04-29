@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getRoleBadge } from '../ui/Badge'
-import { useNavigate } from 'react-router'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 interface NavbarProps {
