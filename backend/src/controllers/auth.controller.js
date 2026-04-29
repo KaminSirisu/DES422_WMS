@@ -1,6 +1,36 @@
 const prisma = require("../utils/prisma");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
+const crypto = require("crypto");
+
+function createToken(user) {
+  return jwt.sign(
+    { id: user.id, role: user.role, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+}
+
+function normalizeUsername(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24) || "google_user";
+}
+
+async function generateUniqueUsername(baseUsername) {
+  let candidate = normalizeUsername(baseUsername);
+  let suffix = 1;
+
+  while (await prisma.user.findUnique({ where: { username: candidate } })) {
+    candidate = `${normalizeUsername(baseUsername).slice(0, 20)}_${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
 
 // SIGNUP
 exports.signup = async (req, res) => {
@@ -60,11 +90,7 @@ exports.login = async (req, res) => {
 
     if (!match) return res.status(400).json({ message: "Wrong password" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d"},
-    );
+    const token = createToken(user);
 
     res.json({ token });
   } catch (err) {
@@ -72,6 +98,62 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
   
+};
+
+// GOOGLE LOGIN
+exports.googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ message: "Google login is not configured on the server" });
+    }
+
+    const { data } = await axios.get("https://oauth2.googleapis.com/tokeninfo", {
+      params: { id_token: credential },
+    });
+
+    if (data.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ message: "Invalid Google audience" });
+    }
+
+    if (!data.email || data.email_verified !== "true") {
+      return res.status(401).json({ message: "Google account email is not verified" });
+    }
+
+    let user = await prisma.user.findFirst({
+      where: { email: data.email },
+    });
+
+    if (!user) {
+      const baseUsername = data.email.split("@")[0] || data.name || "google_user";
+      const username = await generateUniqueUsername(baseUsername);
+      const randomPassword = crypto.randomBytes(32).toString("hex");
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      user = await prisma.user.create({
+        data: {
+          username,
+          email: data.email,
+          password: hashedPassword,
+          role: "user",
+        },
+      });
+    }
+
+    const token = createToken(user);
+    res.json({ token });
+  } catch (err) {
+    const googleMessage = err.response?.data?.error_description;
+    console.error("Google login error:", googleMessage || err.message || err);
+    res.status(401).json({
+      message: googleMessage || "Google login failed",
+    });
+  }
 };
 
 // CURRENT USER

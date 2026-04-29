@@ -4,6 +4,8 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { GoogleLogin } from '@react-oauth/google'
+import type { CredentialResponse } from '@react-oauth/google'
 import { Lock, User, Building2, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
@@ -12,7 +14,8 @@ import { Input } from '../components/ui/Input'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -47,6 +50,26 @@ export function LoginPage() {
     } catch (err: unknown) {
       const msg =
         (err as any)?.response?.data?.message || 'Login failed'
+      toast.error(msg)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleSuccess = async (response: CredentialResponse) => {
+    if (!response.credential) {
+      toast.error('Google login did not return a credential')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      await loginWithGoogle(response.credential)
+      toast.success('Signed in with Google!')
+      setTimeout(() => navigate('/dashboard'), 500)
+    } catch (err: unknown) {
+      const msg =
+        (err as any)?.response?.data?.message || 'Google login failed'
       toast.error(msg)
     } finally {
       setIsLoading(false)
@@ -138,10 +161,28 @@ export function LoginPage() {
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          {/* GOOGLE (UI only) */}
-          <button className="w-full border rounded-lg py-2 text-sm hover:bg-gray-50">
-            Continue with Google
-          </button>
+          <div className="flex justify-center">
+            {googleClientId
+              ? (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('Google login failed')}
+                  text="continue_with"
+                  shape="rectangular"
+                  width="320"
+                />
+              )
+              : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full border rounded-lg py-2 text-sm text-gray-400 bg-gray-100 cursor-not-allowed"
+                  title="Set VITE_GOOGLE_CLIENT_ID to enable Google login"
+                >
+                  Continue with Google
+                </button>
+              )}
+          </div>
 
           {/* SIGN UP */}
           <p className="mt-6 text-center text-sm text-gray-500">

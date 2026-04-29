@@ -16,6 +16,7 @@ interface AuthContextType {
   isStaff: boolean;
   canOperateWarehouse: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   // backward compat
   loginUser: (token: string) => void;
@@ -91,6 +92,13 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     setUser(decodeUser(token));
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    const { token } = await authService.googleLogin(credential);
+    saveToken(token);
+    setAuthToken(token);
+    setUser(decodeUser(token));
+  };
+
   const logout = () => {
     clearToken();
     setAuthToken(null);
@@ -112,6 +120,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         isStaff,
         canOperateWarehouse,
         login,
+        loginWithGoogle,
         logout,
         loginUser,
         logoutUser: logout
