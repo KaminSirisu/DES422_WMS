@@ -14,7 +14,16 @@ const staffRoutes = require("./routes/staff.routes");
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors(
+  allowedOrigins.length > 0
+    ? { origin: allowedOrigins }
+    : undefined,
+));
 app.use(express.json());
 
 app.use("/logs", logRoutes);
@@ -26,7 +35,7 @@ app.use("/orders", orderRoutes);
 app.use("/inbound", inboundRoutes);
 app.use("/staff", staffRoutes);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Auto-cleanup: Remove zero-quantity item-location stock rows on startup.
 async function cleanupZeroQuantityOnStartup() {

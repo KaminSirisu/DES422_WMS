@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, MapPin, Pencil, Package } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useApi } from '../hooks/useApi'
 import { adminService } from '../services/admin.service'
@@ -27,7 +27,6 @@ export function LocationsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editLocation, setEditLocation] = useState<Location | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [expandedLocations, setExpandedLocations] = useState<Set<number>>(new Set())
   const [searchFilters, setSearchFilters] = useState<Record<number, string>>({})
   const [form, setForm] = useState<CreateLocationPayload>(emptyForm)
   const [errors, setErrors] = useState({ zone: '', rack: '', bin: '' })
@@ -95,16 +94,6 @@ export function LocationsPage() {
     } catch {
       toast.error('Failed to delete - location may have stock')
     }
-  }
-
-  const toggleExpand = (locationId: number) => {
-    const newExpanded = new Set(expandedLocations)
-    if (newExpanded.has(locationId)) {
-      newExpanded.delete(locationId)
-    } else {
-      newExpanded.add(locationId)
-    }
-    setExpandedLocations(newExpanded)
   }
 
   const getFilteredItems = (locationId: number, items: any[]) => {

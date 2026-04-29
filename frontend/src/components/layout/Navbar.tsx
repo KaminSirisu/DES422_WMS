@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, LogOut, User } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getRoleBadge } from '../ui/Badge'
 import { useNavigate } from 'react-router'
